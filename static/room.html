@@ -1,0 +1,2599 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QSEC | Secure Quantum Room</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+
+  <!-- Dependencies -->
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    /* Room Layout Overrides */
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .main-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr 340px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Sidebar & Panels re-use global styles or verified existing styles */
+    .sidebar {
+      background: rgba(11, 18, 33, 0.6);
+      border-right: 1px solid var(--panel-border);
+      display: flex;
+      flex-direction: column;
+      padding: 1rem;
+      backdrop-filter: blur(10px);
+    }
+
+    .sidebar-section {
+      margin-bottom: 2rem;
+    }
+
+    .section-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      font-weight: 600;
+    }
+
+    .user-list-item {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem;
+      border-radius: 6px;
+      transition: background 0.2s;
+      cursor: default;
+    }
+
+    .user-list-item:hover {
+      background: rgba(100, 255, 218, 0.05);
+    }
+
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(100, 255, 218, 0.1);
+      color: var(--quantum-teal);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      margin-right: 0.75rem;
+      font-size: 0.85rem;
+      border: 1px solid rgba(100, 255, 218, 0.2);
+    }
+
+    .user-status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      margin-left: auto;
+      box-shadow: 0 0 5px var(--success);
+    }
+
+    .chat-area {
+      display: flex;
+      flex-direction: column;
+      background:
+        linear-gradient(180deg, rgba(5, 10, 16, 0.6) 0%, rgba(8, 14, 24, 0.45) 50%, rgba(5, 10, 16, 0.6) 100%);
+      position: relative;
+      min-height: 0;
+    }
+
+    /* Subtle grid pattern inside chat */
+    .chat-area::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(100, 255, 218, 0.012) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(100, 255, 218, 0.012) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 1.75rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      scroll-behavior: smooth;
+      word-break: break-word;
+      min-height: 0;
+      position: relative;
+      z-index: 1;
+      /* Fade mask at top for scroll context */
+      mask-image: linear-gradient(to bottom, transparent 0%, black 3%, black 100%);
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 3%, black 100%);
+    }
+
+    /* Custom scrollbar for chat */
+    .chat-messages::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    .chat-messages::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: rgba(100, 255, 218, 0.15);
+      border-radius: 10px;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb:hover {
+      background: rgba(100, 255, 218, 0.3);
+    }
+
+    .message-row {
+      display: flex;
+      flex-direction: column;
+      max-width: 72%;
+      animation: msg-appear 0.3s ease-out;
+    }
+
+    @keyframes msg-appear {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message-row.self {
+      align-self: flex-end;
+      align-items: flex-end;
+    }
+
+    .message-row.other {
+      align-self: flex-start;
+      align-items: flex-start;
+    }
+
+    .message-bubble {
+      padding: 0.7rem 1rem;
+      border-radius: 14px;
+      font-size: 0.92rem;
+      line-height: 1.6;
+      position: relative;
+      backdrop-filter: blur(6px);
+      transition: box-shadow 0.2s;
+    }
+
+    .message-bubble:hover {
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .message-row.self .message-bubble {
+      background: linear-gradient(135deg, rgba(100, 255, 218, 0.12), rgba(100, 255, 218, 0.06));
+      border: 1px solid rgba(100, 255, 218, 0.22);
+      border-bottom-right-radius: 4px;
+      color: var(--text-primary);
+      box-shadow: 0 1px 8px rgba(100, 255, 218, 0.06);
+    }
+
+    .message-row.other .message-bubble {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom-left-radius: 4px;
+      color: var(--text-secondary);
+      box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+    }
+
+    .message-meta {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      letter-spacing: 0.01em;
+    }
+
+    .encryption-badge {
+      font-size: 0.6rem;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(100, 255, 218, 0.08);
+      color: var(--quantum-teal);
+      border: 1px solid rgba(100, 255, 218, 0.18);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+
+    .chat-input-area {
+      padding: 1rem 1.25rem;
+      background: linear-gradient(180deg, rgba(11, 18, 33, 0.85), rgba(8, 14, 26, 0.95));
+      border-top: 1px solid rgba(100, 255, 218, 0.08);
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      position: relative;
+      z-index: 1;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Glow line above input area */
+    .chat-input-area::before {
+      content: '';
+      position: absolute;
+      top: -1px;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(100, 255, 218, 0.15), transparent);
+    }
+
+    /* Enhanced input field in chat */
+    .chat-input-area .input-field {
+      flex: 1;
+      padding: 0.7rem 1rem;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      transition: all 0.25s ease;
+    }
+
+    .chat-input-area .input-field::placeholder {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      letter-spacing: 0.02em;
+    }
+
+    .chat-input-area .input-field:focus {
+      outline: none;
+      border-color: rgba(100, 255, 218, 0.3);
+      background: rgba(0, 0, 0, 0.45);
+      box-shadow: 0 0 0 3px rgba(100, 255, 218, 0.06), inset 0 0 12px rgba(100, 255, 218, 0.03);
+    }
+
+    /* Attach button */
+    .chat-input-area #attachBtn {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .chat-input-area #attachBtn:hover {
+      background: rgba(100, 255, 218, 0.08);
+      border-color: rgba(100, 255, 218, 0.2);
+      color: var(--quantum-teal);
+    }
+
+    /* Send button */
+    .chat-input-area #sendBtn {
+      padding: 0.6rem 1.4rem;
+      border-radius: 10px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      flex-shrink: 0;
+      transition: all 0.25s ease;
+    }
+
+    .chat-input-area #sendBtn:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 18px rgba(100, 255, 218, 0.2);
+    }
+
+    .chat-input-area #sendBtn:not(:disabled):active {
+      transform: translateY(0) scale(0.97);
+    }
+
+    /* Voice record button */
+    .chat-input-area #voiceBtn {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .chat-input-area #voiceBtn:hover {
+      background: rgba(100, 255, 218, 0.08);
+      border-color: rgba(100, 255, 218, 0.2);
+      color: var(--quantum-teal);
+    }
+
+    .chat-input-area #voiceBtn.recording {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #ef4444;
+      animation: voicePulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes voicePulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3);
+      }
+
+      50% {
+        box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.2);
+      }
+    }
+
+    .telemetry-panel {
+      background: rgba(11, 18, 33, 0.6);
+      border-left: 1px solid var(--panel-border);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      overflow-y: auto;
+      backdrop-filter: blur(10px);
+    }
+
+    .telemetry-card {
+      background: rgba(5, 10, 16, 0.6);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 1rem;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+
+    .stat-item {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+    }
+
+    .quantum-visualizer {
+      height: 120px;
+      width: 100%;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(100, 255, 218, 0.1);
+    }
+
+    /* Status Pill */
+    .connection-status {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.3s;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      background: currentColor;
+      border-radius: 50%;
+    }
+
+    .blink {
+      animation: blink-anim 1.5s infinite;
+    }
+
+    @keyframes blink-anim {
+      50% {
+        opacity: 0.4;
+      }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+
+    /* 3D Bloch Sphere Popup */
+    .bloch3d-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0);
+      backdrop-filter: blur(0px);
+      pointer-events: none;
+      transition: background 0.4s ease, backdrop-filter 0.4s ease;
+    }
+
+    .bloch3d-overlay.active {
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(12px);
+      pointer-events: all;
+    }
+
+    .bloch3d-modal {
+      width: 680px;
+      max-width: 90vw;
+      background: linear-gradient(145deg, rgba(11, 18, 33, 0.97), rgba(5, 10, 20, 0.98));
+      border: 1px solid rgba(100, 255, 218, 0.2);
+      border-radius: 20px;
+      padding: 0;
+      overflow: hidden;
+      box-shadow:
+        0 0 60px rgba(100, 255, 218, 0.08),
+        0 25px 80px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      transform: scale(0.6) translateY(40px);
+      opacity: 0;
+      transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease;
+    }
+
+    .bloch3d-overlay.active .bloch3d-modal {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+    }
+
+    .bloch3d-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid rgba(100, 255, 218, 0.1);
+      background: rgba(100, 255, 218, 0.03);
+    }
+
+    .bloch3d-header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .bloch3d-header-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(100, 255, 218, 0.15), rgba(100, 255, 218, 0.05));
+      border: 1px solid rgba(100, 255, 218, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .bloch3d-title {
+      font-family: var(--font-heading);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      background: linear-gradient(90deg, #64ffda, #00bcd4);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .bloch3d-subtitle {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 1px;
+    }
+
+    .bloch3d-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      transition: all 0.2s;
+    }
+
+    .bloch3d-close:hover {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+    }
+
+    .bloch3d-canvas-wrap {
+      position: relative;
+      width: 100%;
+      height: 420px;
+      background: radial-gradient(ellipse at center, rgba(100, 255, 218, 0.03) 0%, transparent 70%);
+    }
+
+    .bloch3d-canvas-wrap canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .bloch3d-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      border-top: 1px solid rgba(100, 255, 218, 0.08);
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .bloch3d-state-badge {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 6px;
+      background: rgba(100, 255, 218, 0.08);
+      border: 1px solid rgba(100, 255, 218, 0.2);
+      color: #94a3b8;
+      letter-spacing: 0.08em;
+      transition: all 0.3s;
+    }
+
+    .bloch3d-info {
+      display: flex;
+      gap: 1.5rem;
+    }
+
+    .bloch3d-info-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .bloch3d-info-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    /* Hint on Bloch sphere card */
+    .bloch-card-clickable {
+      cursor: pointer;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .bloch-card-clickable:hover {
+      border-color: rgba(100, 255, 218, 0.35);
+      box-shadow: 0 0 20px rgba(100, 255, 218, 0.08);
+    }
+
+    .bloch-expand-hint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      margin-top: 4px;
+      font-size: 0.6rem;
+      color: rgba(100, 255, 218, 0.35);
+      letter-spacing: 0.05em;
+      transition: color 0.3s;
+    }
+
+    .bloch-card-clickable:hover .bloch-expand-hint {
+      color: rgba(100, 255, 218, 0.7);
+    }
+
+    /* ===== Event Log Popup ===== */
+    .logpopup-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9998;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0);
+      backdrop-filter: blur(0px);
+      pointer-events: none;
+      transition: background 0.4s ease, backdrop-filter 0.4s ease;
+    }
+
+    .logpopup-overlay.active {
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(14px);
+      pointer-events: all;
+    }
+
+    .logpopup-modal {
+      width: 820px;
+      max-width: 92vw;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(145deg, rgba(11, 18, 33, 0.98), rgba(5, 10, 20, 0.99));
+      border: 1px solid rgba(100, 255, 218, 0.15);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow:
+        0 0 50px rgba(100, 255, 218, 0.06),
+        0 30px 80px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      transform: scale(0.65) translateY(30px);
+      opacity: 0;
+      transition: transform 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.35s ease;
+    }
+
+    .logpopup-overlay.active .logpopup-modal {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+    }
+
+    .logpopup-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid rgba(100, 255, 218, 0.08);
+      background: rgba(100, 255, 218, 0.02);
+      flex-shrink: 0;
+    }
+
+    .logpopup-header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logpopup-header-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(100, 255, 218, 0.12), rgba(100, 255, 218, 0.04));
+      border: 1px solid rgba(100, 255, 218, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+    }
+
+    .logpopup-title {
+      font-family: var(--font-heading);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      background: linear-gradient(90deg, #64ffda, #00bcd4);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logpopup-subtitle {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 1px;
+    }
+
+    .logpopup-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .logpopup-btn {
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .logpopup-btn:hover {
+      background: rgba(100, 255, 218, 0.08);
+      border-color: rgba(100, 255, 218, 0.25);
+      color: #64ffda;
+    }
+
+    .logpopup-btn.danger:hover {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+    }
+
+    .logpopup-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      transition: all 0.2s;
+    }
+
+    .logpopup-close:hover {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+    }
+
+    .logpopup-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.25rem 1.5rem;
+      min-height: 0;
+    }
+
+    .logpopup-body .log-entry {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: 8px;
+      margin-bottom: 2px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      line-height: 1.55;
+      color: var(--text-secondary);
+      transition: background 0.15s;
+      border-left: 3px solid transparent;
+    }
+
+    .logpopup-body .log-entry:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .logpopup-body .log-entry.log-secure {
+      border-left-color: #64ffda;
+      color: #64ffda;
+    }
+
+    .logpopup-body .log-entry.log-error {
+      border-left-color: #ef4444;
+      color: #ef4444;
+    }
+
+    .logpopup-body .log-entry.log-info {
+      border-left-color: transparent;
+    }
+
+    .logpopup-body .log-entry .log-ts {
+      flex-shrink: 0;
+      opacity: 0.4;
+      font-size: 0.7rem;
+      min-width: 72px;
+    }
+
+    .logpopup-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1.5rem;
+      border-top: 1px solid rgba(100, 255, 218, 0.06);
+      background: rgba(0, 0, 0, 0.2);
+      flex-shrink: 0;
+    }
+
+    .logpopup-count {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+
+    .logpopup-live-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #64ffda;
+      margin-right: 6px;
+      animation: logpopup-pulse 2s infinite;
+    }
+
+    @keyframes logpopup-pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.3;
+      }
+    }
+
+    /* Event Log card clickable hint */
+    .log-card-clickable {
+      cursor: pointer;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .log-card-clickable:hover {
+      border-color: rgba(100, 255, 218, 0.3);
+      box-shadow: 0 0 18px rgba(100, 255, 218, 0.06);
+    }
+
+    .log-expand-hint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      margin-top: 6px;
+      font-size: 0.6rem;
+      color: rgba(100, 255, 218, 0.3);
+      letter-spacing: 0.05em;
+      transition: color 0.3s;
+    }
+
+    .log-card-clickable:hover .log-expand-hint {
+      color: rgba(100, 255, 218, 0.65);
+    }
+
+    /* ============================================================
+       QBER Analysis Popup — Maximized Clean View
+       ============================================================ */
+    .qberpopup-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(12px);
+      justify-content: center;
+      align-items: center;
+      animation: qberpopup-fadein 0.3s ease;
+    }
+
+    .qberpopup-overlay.open {
+      display: flex;
+    }
+
+    @keyframes qberpopup-fadein {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes qberpopup-scalein {
+      from {
+        transform: scale(0.92) translateY(20px);
+        opacity: 0;
+      }
+
+      to {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .qberpopup-modal {
+      width: 620px;
+      max-width: 95vw;
+      max-height: 90vh;
+      background: linear-gradient(165deg, #0d1520 0%, #0a0f18 50%, #0d1520 100%);
+      border: 1px solid rgba(100, 255, 218, 0.12);
+      border-radius: 18px;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(100, 255, 218, 0.04);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: qberpopup-scalein 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .qberpopup-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid rgba(100, 255, 218, 0.08);
+      background: rgba(0, 0, 0, 0.25);
+      flex-shrink: 0;
+    }
+
+    .qberpopup-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .qberpopup-header-icon {
+      font-size: 1.5rem;
+    }
+
+    .qberpopup-title {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: #e2e8f0;
+    }
+
+    .qberpopup-subtitle {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    .qberpopup-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .qberpopup-close:hover {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+    }
+
+    .qberpopup-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.25rem 1.5rem;
+      min-height: 0;
+    }
+
+    /* QBER stat grid inside popup */
+    .qberpopup-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .qberpopup-stat {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+
+    .qberpopup-stat-label {
+      font-size: 0.6rem;
+      font-family: var(--font-mono);
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .qberpopup-stat-value {
+      font-size: 1.15rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: #e2e8f0;
+    }
+
+    /* Threshold bar */
+    .qber-threshold-bar {
+      position: relative;
+      height: 28px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      overflow: hidden;
+      margin: 12px 0;
+    }
+
+    .qber-threshold-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      border-radius: 8px;
+      transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .qber-threshold-marker {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: #ef4444;
+      z-index: 2;
+    }
+
+    .qber-threshold-marker-label {
+      position: absolute;
+      top: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.55rem;
+      font-family: var(--font-mono);
+      color: #ef4444;
+      white-space: nowrap;
+    }
+
+    .qber-threshold-value-label {
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.65rem;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: #fff;
+      z-index: 3;
+    }
+
+    /* Efficiency metrics row */
+    .qber-efficiency-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .qber-eff-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .qber-eff-label {
+      font-size: 0.6rem;
+      font-family: var(--font-mono);
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .qber-eff-value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+
+    .qber-eff-sub {
+      font-size: 0.55rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+      font-family: var(--font-mono);
+    }
+
+    /* Matching log in popup */
+    .qberpopup-matchlog {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(100, 255, 218, 0.06);
+      border-radius: 10px;
+      padding: 8px 10px;
+      margin-top: 16px;
+      max-height: 180px;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      line-height: 1.5;
+      scrollbar-width: thin;
+    }
+
+    .qberpopup-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1.5rem;
+      border-top: 1px solid rgba(100, 255, 218, 0.06);
+      background: rgba(0, 0, 0, 0.2);
+      flex-shrink: 0;
+    }
+
+    .qberpopup-verdict {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+    }
+
+    @media (max-width: 768px) {
+      .qberpopup-modal {
+        max-width: 98vw;
+        max-height: 92vh;
+        border-radius: 14px;
+      }
+
+      .qberpopup-stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .qber-efficiency-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ============================================================
+       MOBILE RESPONSIVE — drawers for sidebar & telemetry
+       ============================================================ */
+
+    /* Toggle buttons (hidden on desktop) */
+    .mobile-toggle {
+      display: none;
+      position: fixed;
+      bottom: 72px;
+      z-index: 200;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: 1px solid rgba(100, 255, 218, 0.25);
+      background: rgba(11, 18, 33, 0.95);
+      color: var(--quantum-teal);
+      backdrop-filter: blur(12px);
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      transition: all 0.25s ease;
+    }
+
+    .mobile-toggle:active {
+      transform: scale(0.92);
+    }
+
+    .mobile-toggle svg {
+      pointer-events: none;
+    }
+
+    #mobileToggleSidebar {
+      left: 16px;
+    }
+
+    #mobileToggleTelemetry {
+      right: 16px;
+    }
+
+    @media (max-width: 768px) {
+
+      /* Show toggle buttons */
+      .mobile-toggle {
+        display: flex;
+      }
+
+      /* Header: shrink & wrap */
+      .cyber-header {
+        height: auto;
+        min-height: 48px;
+        padding: 0.5rem 0.75rem;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+      }
+
+      .cyber-header .text-gradient {
+        font-size: 1rem !important;
+        margin-right: 0.5rem !important;
+      }
+
+      .room-id-chip {
+        font-size: 0.72rem;
+        padding: 0.2rem 0.5rem;
+        margin-left: 0.4rem;
+      }
+
+      .room-id-chip .copy-icon {
+        display: none;
+      }
+
+      #capacityDisplay {
+        display: none;
+      }
+
+      .connection-status {
+        font-size: 0.65rem;
+        padding: 3px 8px;
+      }
+
+      .connection-status .status-dot {
+        width: 5px;
+        height: 5px;
+      }
+
+      #leaveBtn {
+        font-size: 0.72rem !important;
+        padding: 0.3rem 0.7rem !important;
+      }
+
+      /* Grid → single column, chat fills space */
+      .main-layout {
+        grid-template-columns: 1fr !important;
+        grid-template-rows: 1fr;
+      }
+
+      /* Sidebar → left drawer */
+      .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 280px;
+        max-width: 80vw;
+        height: 100vh;
+        z-index: 150;
+        transform: translateX(-100%);
+        transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 4px 0 30px rgba(0, 0, 0, 0.5);
+        overflow-y: auto;
+        padding-top: 60px;
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      /* Telemetry → right drawer */
+      .telemetry-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 320px;
+        max-width: 85vw;
+        height: 100vh;
+        z-index: 150;
+        transform: translateX(100%);
+        transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: -4px 0 30px rgba(0, 0, 0, 0.5);
+        overflow-y: auto;
+        padding-top: 60px;
+      }
+
+      .telemetry-panel.open {
+        transform: translateX(0);
+      }
+
+      /* Backdrop overlay for drawers */
+      .drawer-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 140;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+      }
+
+      .drawer-backdrop.active {
+        display: block;
+      }
+
+      /* Chat area adjustments */
+      .chat-area {
+        min-height: 0;
+      }
+
+      .chat-messages {
+        padding: 1rem 0.75rem;
+        padding-bottom: 70px;
+      }
+
+      .message-row {
+        max-width: 88%;
+      }
+
+      .chat-input-area {
+        padding: 0.65rem 0.75rem;
+        gap: 0.5rem;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+      }
+
+      .chat-input-area .input-field {
+        font-size: 0.85rem;
+        padding: 0.6rem 0.8rem;
+      }
+
+      .chat-input-area #sendBtn {
+        padding: 0.5rem 1rem;
+        font-size: 0.75rem;
+      }
+
+      .chat-input-area #attachBtn {
+        width: 36px;
+        height: 36px;
+      }
+
+      /* Modals: full-screen on mobile */
+      .bloch3d-modal {
+        max-width: 98vw;
+        border-radius: 14px;
+      }
+
+      .bloch3d-canvas-wrap {
+        height: 300px;
+      }
+
+      .bloch3d-footer {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .bloch3d-info {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+
+      .logpopup-modal {
+        max-width: 98vw;
+        max-height: 90vh;
+        border-radius: 14px;
+      }
+
+      .logpopup-header {
+        padding: 0.75rem 1rem;
+      }
+
+      .logpopup-body {
+        padding: 0.75rem 1rem;
+      }
+
+      .logpopup-body .log-entry {
+        font-size: 0.7rem;
+        padding: 0.4rem 0.5rem;
+      }
+
+      .logpopup-footer {
+        padding: 0.5rem 1rem;
+      }
+    }
+
+    /* Small phones */
+    @media (max-width: 400px) {
+      .cyber-header {
+        padding: 0.4rem 0.5rem;
+      }
+
+      .sidebar {
+        width: 260px;
+      }
+
+      .telemetry-panel {
+        width: 280px;
+      }
+
+      .chat-messages {
+        padding: 0.75rem 0.5rem;
+        padding-bottom: 70px;
+      }
+
+      .message-row {
+        max-width: 92%;
+      }
+
+      .message-bubble {
+        font-size: 0.85rem;
+        padding: 0.6rem 0.8rem;
+      }
+    }
+
+    /* ============================================================
+       EC & PRIVACY AMPLIFICATION CARD
+       ============================================================ */
+    .ecpa-card {
+      position: relative;
+      transition: border-color 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    .ecpa-card::after {
+      content: '';
+      position: absolute;
+      top: -1px;
+      left: 20%;
+      right: 20%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(129, 140, 248, 0.4), rgba(34, 211, 238, 0.3), transparent);
+      border-radius: 2px;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .ecpa-card.ecpa-active {
+      border-color: rgba(129, 140, 248, 0.25);
+      box-shadow: 0 0 20px rgba(129, 140, 248, 0.06), inset 0 0 30px rgba(129, 140, 248, 0.02);
+    }
+
+    .ecpa-card.ecpa-active::after {
+      opacity: 1;
+      animation: ecpa-glow-sweep 2.5s ease-in-out infinite;
+    }
+
+    .ecpa-card.ecpa-done {
+      border-color: rgba(100, 255, 218, 0.2);
+      box-shadow: 0 0 15px rgba(100, 255, 218, 0.04);
+    }
+
+    .ecpa-card.ecpa-done::after {
+      opacity: 1;
+      background: linear-gradient(90deg, transparent, rgba(100, 255, 218, 0.3), transparent);
+    }
+
+    @keyframes ecpa-glow-sweep {
+
+      0%,
+      100% {
+        opacity: 0.4;
+      }
+
+      50% {
+        opacity: 1;
+      }
+    }
+
+    @keyframes ecpa-pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(129, 140, 248, 0.3);
+      }
+
+      70% {
+        box-shadow: 0 0 0 6px rgba(129, 140, 248, 0);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0 rgba(129, 140, 248, 0);
+      }
+    }
+
+    /* ============================================================
+       REAL TIME CHARTS CONTAINER
+       ============================================================ */
+    .realtime-charts-container {
+      background: linear-gradient(180deg, rgba(11, 18, 33, 0.85) 0%, rgba(5, 10, 16, 0.9) 100%);
+      border: 1px solid rgba(100, 255, 218, 0.18);
+      border-radius: 12px;
+      padding: 1.1rem;
+      position: relative;
+      flex-shrink: 0;
+      box-shadow:
+        0 0 20px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(100, 255, 218, 0.06);
+    }
+
+    .realtime-charts-container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent 5%, rgba(100, 255, 218, 0.5), rgba(79, 172, 254, 0.35), transparent 95%);
+      animation: rtc-glow-sweep 3s ease-in-out infinite;
+      border-radius: 12px 12px 0 0;
+      z-index: 1;
+    }
+
+    @keyframes rtc-glow-sweep {
+
+      0%,
+      100% {
+        opacity: 0.5;
+      }
+
+      50% {
+        opacity: 1;
+      }
+    }
+
+    .rtc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .rtc-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .rtc-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(100, 255, 218, 0.12), rgba(79, 172, 254, 0.08));
+      border: 1px solid rgba(100, 255, 218, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+    }
+
+    .rtc-title {
+      font-family: var(--font-heading);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, #64ffda, #4facfe);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .rtc-live-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--quantum-teal);
+      padding: 3px 8px;
+      border-radius: 10px;
+      background: rgba(100, 255, 218, 0.06);
+      border: 1px solid rgba(100, 255, 218, 0.15);
+    }
+
+    .rtc-live-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--quantum-teal);
+      animation: rtc-pulse 2s infinite;
+    }
+
+    @keyframes rtc-pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+        box-shadow: 0 0 4px rgba(100, 255, 218, 0.6);
+      }
+
+      50% {
+        opacity: 0.3;
+        box-shadow: 0 0 2px rgba(100, 255, 218, 0.2);
+      }
+    }
+
+    .rtc-chart-card {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(100, 255, 218, 0.1);
+      border-radius: 10px;
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+      flex-shrink: 0;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .rtc-chart-card:last-child {
+      margin-bottom: 0;
+    }
+
+    .rtc-chart-card:hover {
+      border-color: rgba(100, 255, 218, 0.22);
+      box-shadow: 0 0 18px rgba(100, 255, 218, 0.06);
+    }
+
+    .rtc-chart-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .rtc-chart-name {
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary, #94a3b8);
+      text-transform: uppercase;
+    }
+
+    .rtc-chart-value {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(100, 255, 218, 0.06);
+      border: 1px solid rgba(100, 255, 218, 0.12);
+      transition: all 0.3s;
+    }
+
+    .rtc-chart-wrap {
+      position: relative;
+      height: 120px;
+      min-height: 120px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .rtc-chart-wrap canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .rtc-no-data {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: rgba(100, 255, 218, 0.2);
+      letter-spacing: 0.12em;
+      pointer-events: none;
+      transition: opacity 0.5s;
+      background: rgba(0, 0, 0, 0.15);
+      border-radius: 8px;
+    }
+
+    @media (max-width: 768px) {
+      .rtc-chart-wrap {
+        height: 100px;
+      }
+    }
+
+    /* ============================================================
+       REAL TIME CHARTS — MAXIMIZED POPUP
+       ============================================================ */
+    .rtcpopup-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(14px);
+      justify-content: center;
+      align-items: center;
+      animation: rtcpopup-fadein 0.3s ease;
+    }
+
+    .rtcpopup-overlay.open {
+      display: flex;
+    }
+
+    @keyframes rtcpopup-fadein {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes rtcpopup-scalein {
+      from {
+        transform: scale(0.9) translateY(25px);
+        opacity: 0;
+      }
+
+      to {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .rtcpopup-modal {
+      width: 880px;
+      max-width: 95vw;
+      max-height: 92vh;
+      background: linear-gradient(165deg, #0d1520 0%, #0a0f18 50%, #0d1520 100%);
+      border: 1px solid rgba(100, 255, 218, 0.15);
+      border-radius: 18px;
+      box-shadow:
+        0 30px 90px rgba(0, 0, 0, 0.6),
+        0 0 60px rgba(100, 255, 218, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: rtcpopup-scalein 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .rtcpopup-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid rgba(100, 255, 218, 0.1);
+      background: rgba(100, 255, 218, 0.02);
+      flex-shrink: 0;
+    }
+
+    .rtcpopup-header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .rtcpopup-header-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(100, 255, 218, 0.15), rgba(79, 172, 254, 0.08));
+      border: 1px solid rgba(100, 255, 218, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+    }
+
+    .rtcpopup-title {
+      font-family: var(--font-heading);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      background: linear-gradient(90deg, #64ffda, #4facfe);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .rtcpopup-subtitle {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .rtcpopup-close {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      transition: all 0.2s;
+    }
+
+    .rtcpopup-close:hover {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+    }
+
+    .rtcpopup-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.25rem 1.5rem;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .rtcpopup-chart-section {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(100, 255, 218, 0.08);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      flex-shrink: 0;
+    }
+
+    .rtcpopup-chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .rtcpopup-chart-title {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #e2e8f0;
+      text-transform: uppercase;
+    }
+
+    .rtcpopup-chart-stats {
+      display: flex;
+      gap: 12px;
+    }
+
+    .rtcpopup-stat-pill {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 6px;
+      background: rgba(100, 255, 218, 0.06);
+      border: 1px solid rgba(100, 255, 218, 0.12);
+      letter-spacing: 0.04em;
+    }
+
+    .rtcpopup-chart-canvas {
+      position: relative;
+      width: 100%;
+      height: 220px;
+    }
+
+    .rtcpopup-chart-canvas canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .rtcpopup-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 1.5rem;
+      border-top: 1px solid rgba(100, 255, 218, 0.06);
+      background: rgba(0, 0, 0, 0.2);
+      flex-shrink: 0;
+    }
+
+    .rtcpopup-footer-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+
+    /* Clickable hint on sidebar container */
+    .realtime-charts-container.rtc-clickable {
+      cursor: pointer;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .realtime-charts-container.rtc-clickable:hover {
+      border-color: rgba(100, 255, 218, 0.3);
+      box-shadow: 0 0 25px rgba(100, 255, 218, 0.08);
+    }
+
+    .rtc-expand-hint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      margin-top: 8px;
+      font-size: 0.6rem;
+      color: rgba(100, 255, 218, 0.3);
+      letter-spacing: 0.06em;
+      transition: color 0.3s;
+    }
+
+    .realtime-charts-container.rtc-clickable:hover .rtc-expand-hint {
+      color: rgba(100, 255, 218, 0.7);
+    }
+
+    @media (max-width: 768px) {
+      .rtcpopup-modal {
+        max-width: 98vw;
+        max-height: 95vh;
+        border-radius: 14px;
+      }
+
+      .rtcpopup-chart-canvas {
+        height: 160px;
+      }
+
+      .rtcpopup-chart-stats {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="quantum-bg" style="z-index: -2;"></div>
+
+  <!-- Enhanced Cyber Header -->
+  <header class="cyber-header">
+    <div class="header-cyber-line"></div>
+
+    <div class="flex-center">
+      <!-- Logo -->
+      <div style="font-weight: 700; font-size: 1.25rem; letter-spacing: 0.1em; margin-right: 1.5rem;"
+        class="text-gradient">QSEC</div>
+
+      <!-- Room Chip -->
+      <div id="roomCopyBtn" class="room-id-chip" title="Click to Copy Room ID">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <span id="roomNameDisplay">...</span>
+        <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+      </div>
+
+      <!-- Capacity Indicator -->
+      <div id="capacityDisplay" class="text-xs font-mono text-muted" style="margin-left: 1rem; opacity: 0.7;">
+        NODES: <span id="userCount">0</span>/<span id="expectedCount">-</span>
+      </div>
+    </div>
+
+    <div class="flex-center" style="gap: 1.5rem;">
+      <div id="sessionStatusBadge" class="connection-status"
+        style="background: rgba(245, 158, 11, 0.15); color: var(--warning); border-color: rgba(245, 158, 11, 0.3);">
+        <div class="status-dot blink"></div>
+        <span id="sessionStatusText" class="font-mono text-xs">WAITING FOR PEERS...</span>
+      </div>
+
+      <button id="leaveBtn" class="btn"
+        style="padding: 0.4rem 1rem; font-size: 0.85rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: var(--danger);">
+        ABORT LINK
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Layout -->
+  <div class="main-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="section-title">Field Operators</div>
+        <div id="userList" class="flex-col" style="gap: 0.5rem;"></div>
+      </div>
+
+      <div class="sidebar-section" style="margin-top: auto;">
+        <div class="section-title">Uplink Telemetry</div>
+        <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.6;">
+          <div>Proto: <span class="text-gradient">BB84v2+EC/PA</span></div>
+          <div>Time: <span id="sessionTimer" class="font-mono">00:00:00</span></div>
+          <div style="margin-top: 5px; font-size: 0.7rem; opacity: 0.5;">SESSION HASH:</div>
+          <div class="font-mono text-xs" style="opacity: 0.5; word-break: break-all;">8f3a...2b9c</div>
+        </div>
+      </div>
+
+      <!-- Docs Link -->
+      <a href="/docs" target="_blank" style="
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 6px 0;
+        margin-top: 4px;
+        font-family: var(--font-mono);
+        font-size: 0.65rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        color: var(--quantum-teal);
+        background: rgba(100, 255, 218, 0.04);
+        border: 1px solid rgba(100, 255, 218, 0.1);
+        border-radius: 6px;
+        text-decoration: none;
+        transition: all 0.25s ease;
+        cursor: pointer;
+        opacity: 0.7;
+      " onmouseover="this.style.background='rgba(100,255,218,0.1)';this.style.borderColor='rgba(100,255,218,0.3)';this.style.opacity='1';this.style.boxShadow='0 0 10px rgba(100,255,218,0.08)'"
+        onmouseout="this.style.background='rgba(100,255,218,0.04)';this.style.borderColor='rgba(100,255,218,0.1)';this.style.opacity='0.7';this.style.boxShadow='none'">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+        </svg>
+        DOCS
+      </a>
+    </aside>
+
+    <!-- Chat -->
+    <section class="chat-area">
+      <div id="chatMessages" class="chat-messages">
+        <div class="flex-center"
+          style="height: 100%; opacity: 0.08; flex-direction: column; gap: 1rem; pointer-events: none;">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <div class="font-mono" style="font-size:0.8rem; letter-spacing:0.15em;">ENCRYPTED CHANNEL</div>
+          <div style="font-size:0.6rem; letter-spacing:0.1em; opacity:0.5; margin-top:-0.5rem;">AES-256-GCM</div>
+        </div>
+      </div>
+
+      <div class="chat-input-area">
+        <button id="attachBtn" class="btn" title="Attach file">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path
+              d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48">
+            </path>
+          </svg>
+        </button>
+        <input type="file" id="fileInput" hidden>
+        <input type="text" id="messageInput" class="input-field" placeholder="Transmit secure message..."
+          autocomplete="off">
+        <div id="voiceRecordArea" style="display:none; flex:1; align-items:center; gap:10px; padding:0 12px;">
+          <div id="voiceTimer"
+            style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:#ef4444; letter-spacing:0.05em; min-width:42px;">
+            00:00</div>
+          <canvas id="voiceWaveform" height="36" style="flex:1; height:36px; border-radius:4px;"></canvas>
+          <button id="voiceCancelBtn" class="btn" title="Cancel recording"
+            style="width:32px;height:32px;padding:0;border-radius:50%;color:#ef4444;border-color:rgba(239,68,68,0.3);">✕</button>
+        </div>
+        <button id="voiceBtn" class="btn" title="Record voice message">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+        </button>
+        <button id="sendBtn" class="btn btn-primary">SEND</button>
+      </div>
+    </section>
+
+    <!-- Telemetry -->
+    <aside class="telemetry-panel">
+      <div class="section-title">Quantum State</div>
+
+      <!-- Live Eavesdropper Detection -->
+      <div class="telemetry-card" style="padding: 10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <div class="side-label" style="font-size:.75rem; font-weight:700; margin:0;">Live Channel Monitor</div>
+          <div id="channelStatusBadge" style="font-size:.6rem; font-weight:700; letter-spacing:1px; padding:2px 8px; border-radius:10px;
+            background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#94a3b8;">
+            IDLE
+          </div>
+        </div>
+        <div
+          style="position:relative; height:80px; background:rgba(0,0,0,0.3); border-radius:8px; border:1px solid rgba(100,255,218,0.1); overflow:hidden;">
+          <canvas id="eavesdropperCanvas" style="width:100%; height:100%;"></canvas>
+        </div>
+        <div
+          style="text-align:center; margin-top:5px; font-size:.55rem; color:rgba(255,255,255,0.25); letter-spacing:0.5px;">
+          ━━ straight = secure channel &nbsp;│&nbsp; noisy = eavesdropper ━━
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="telemetry-card">
+        <div class="side-label text-sm font-bold mb-2">Key Exchange</div>
+        <div class="stat-grid" style="grid-template-columns: 1fr;">
+          <div class="stat-item flex-center" style="justify-content: space-between;">
+            <span class="stat-label" style="margin:0;">Status</span>
+            <span id="keyStatusDisplay" class="text-xs"
+              style="color: var(--warning); border: 1px solid var(--warning); padding: 2px 6px; border-radius: 4px;">NEGOTIATING</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="telemetry-card log-card-clickable" id="qberCard">
+        <div class="side-label text-sm font-bold mb-2">QBER Analysis</div>
+
+        <!-- Real-time matching visualization -->
+        <div id="qberMatchStrip" style="
+          margin-bottom: 8px;
+          background: rgba(0,0,0,0.3);
+          border: 1px solid rgba(100,255,218,0.08);
+          border-radius: 8px;
+          padding: 6px 8px;
+          display: none;
+        ">
+          <!-- Progress bar -->
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:5px;">
+            <span
+              style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-muted); letter-spacing:0.05em;">COMPARING
+              QUBITS</span>
+            <span id="qberProgress"
+              style="font-family:var(--font-mono); font-size:0.6rem; color:var(--quantum-teal);">0/0</span>
+          </div>
+          <div
+            style="height:3px; background:rgba(255,255,255,0.06); border-radius:2px; overflow:hidden; margin-bottom:6px;">
+            <div id="qberProgressBar"
+              style="height:100%; width:0%; background:linear-gradient(90deg, var(--quantum-teal), var(--quantum-blue)); border-radius:2px; transition:width 0.08s linear;">
+            </div>
+          </div>
+          <!-- Scrolling comparison display -->
+          <div id="qberMatchLog" style="
+            height: 70px;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 0.6rem;
+            line-height: 1.45;
+            scrollbar-width: thin;
+          "></div>
+        </div>
+
+        <div class="stat-grid" style="grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div class="stat-item">
+            <span class="stat-label">Total Qubits</span>
+            <div id="qberTotalBits" class="stat-value" style="font-size:1rem;">—</div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">QBER</span>
+            <div id="qberValue" class="stat-value text-gradient" style="font-size:1rem;">—</div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label" style="color:var(--success);">✓ Matched</span>
+            <div id="qberMatched" class="stat-value" style="font-size:1rem; color:var(--success);">—</div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label" style="color:var(--warning);">✗ Discarded</span>
+            <div id="qberDiscarded" class="stat-value" style="font-size:1rem; color:var(--warning);">—</div>
+          </div>
+        </div>
+        <div id="qberVerdict" style="text-align:center; margin-top:8px; padding:5px 10px; border-radius:6px; font-size:.75rem; font-weight:700; letter-spacing:1px;
+          background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); color:#94a3b8;">
+          AWAITING BB84 DATA
+        </div>
+        <div class="log-expand-hint">⊞ CLICK TO MAXIMIZE</div>
+      </div>
+
+      <!-- Error Correction & Privacy Amplification -->
+      <div class="telemetry-card ecpa-card" id="ecpaCard">
+        <div class="side-label text-sm font-bold mb-2" style="display:flex; align-items:center; gap:6px;">
+          <span>EC & Privacy Amplification</span>
+          <span style="font-size:0.55rem; padding:1px 6px; border-radius:8px; background:rgba(129,140,248,0.1); 
+            border:1px solid rgba(129,140,248,0.2); color:#818cf8; font-weight:600; letter-spacing:0.05em;">CASCADE +
+            TOEPLITZ</span>
+        </div>
+
+        <!-- Progress bar -->
+        <div id="ecpaProgressCard" style="
+          margin-bottom: 8px;
+          background: rgba(0,0,0,0.3);
+          border: 1px solid rgba(129,140,248,0.12);
+          border-radius: 8px;
+          padding: 6px 8px;
+        ">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+            <span id="ecpaProgressLabel"
+              style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-muted); letter-spacing:0.05em;">AWAITING
+              SIFTED KEY</span>
+            <span id="ecpaProgressDetail"
+              style="font-family:var(--font-mono); font-size:0.55rem; color:rgba(129,140,248,0.7);"></span>
+          </div>
+          <div style="height:3px; background:rgba(255,255,255,0.06); border-radius:2px; overflow:hidden;">
+            <div id="ecpaProgressBar"
+              style="height:100%; width:0%; background:linear-gradient(90deg, #818cf8, #22d3ee); border-radius:2px; transition:width 0.3s ease;">
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-grid" style="grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div class="stat-item">
+            <span class="stat-label" style="color:#f59e0b;">⊕ EC Pass</span>
+            <div id="ecpaPassValue" class="stat-value" style="font-size:1rem; color:#f59e0b;">—</div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label" style="color:#ef4444;">⚡ Errors Fixed</span>
+            <div id="ecpaErrorsValue" class="stat-value" style="font-size:1rem; color:#ef4444;">0</div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label" style="color:#94a3b8;">⊞ Blocks</span>
+            <div id="ecpaBlocksValue" class="stat-value" style="font-size:1rem;">0</div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label" style="color:#818cf8;">🔐 PA Output</span>
+            <div id="ecpaPABitsValue" class="stat-value" style="font-size:1rem; color:#818cf8;">—</div>
+          </div>
+        </div>
+
+        <div id="ecpaStageDisplay"
+          style="text-align:center; margin-top:8px; padding:5px 10px; border-radius:6px; font-size:.75rem; font-weight:700; letter-spacing:1px;
+          background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); color:#94a3b8; transition: all 0.3s ease;">
+          AWAITING EC/PA
+        </div>
+      </div>
+
+      <!-- Real Time Charts -->
+      <div class="realtime-charts-container rtc-clickable" id="realtimeChartsContainer">
+        <div class="rtc-header">
+          <div class="rtc-title-group">
+            <div class="rtc-icon">📈</div>
+            <div class="rtc-title">Real Time Charts</div>
+          </div>
+          <div class="rtc-live-badge">
+            <div class="rtc-live-dot"></div>
+            LIVE
+          </div>
+        </div>
+
+        <!-- Chart 1: QBER & Efficiency Analysis -->
+        <div class="rtc-chart-card">
+          <div class="rtc-chart-label">
+            <span class="rtc-chart-name">QBER & Efficiency Analysis</span>
+            <span class="rtc-chart-value" id="rtcQberLiveValue" style="color: #64ffda;">— %</span>
+          </div>
+          <div class="rtc-chart-wrap">
+            <canvas id="rtcQberEffChart"></canvas>
+            <div class="rtc-no-data" id="rtcQberNoData">AWAITING BB84 DATA</div>
+          </div>
+        </div>
+
+        <!-- Chart 2: Basis Matching Analysis -->
+        <div class="rtc-chart-card">
+          <div class="rtc-chart-label">
+            <span class="rtc-chart-name">Basis Matching Analysis</span>
+            <span class="rtc-chart-value" id="rtcBasisLiveValue" style="color: #818cf8;">— / —</span>
+          </div>
+          <div class="rtc-chart-wrap">
+            <canvas id="rtcBasisChart"></canvas>
+            <div class="rtc-no-data" id="rtcBasisNoData">AWAITING BB84 DATA</div>
+          </div>
+        </div>
+        <div class="rtc-expand-hint">⊞ CLICK TO MAXIMIZE</div>
+      </div>
+
+      <div class="telemetry-card log-card-clickable" id="logCard">
+        <div class="section-title" style="margin-bottom:0.5rem;">Event Log</div>
+        <div id="systemLog" class="font-mono text-xs text-muted"
+          style="height: 120px; overflow-y: auto; padding-right: 4px;">
+          <div>[SYS] Telemetry initialized.</div>
+        </div>
+        <div class="log-expand-hint">⊞ CLICK TO MAXIMIZE</div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 3D Bloch Sphere Popup -->
+  <div id="bloch3dOverlay" class="bloch3d-overlay">
+    <div class="bloch3d-modal">
+      <div class="bloch3d-header">
+        <div class="bloch3d-header-left">
+          <div class="bloch3d-header-icon">⚛</div>
+          <div>
+            <div class="bloch3d-title">3D BLOCH SPHERE</div>
+            <div class="bloch3d-subtitle">Real-time qubit state visualization</div>
+          </div>
+        </div>
+        <button id="bloch3dClose" class="bloch3d-close" title="Close">&times;</button>
+      </div>
+      <div id="bloch3dCanvasWrap" class="bloch3d-canvas-wrap"></div>
+      <div class="bloch3d-footer">
+        <div id="bloch3dStateBadge" class="bloch3d-state-badge">IDLE - AWAITING BB84</div>
+        <div class="bloch3d-info">
+          <div class="bloch3d-info-item">
+            <div class="bloch3d-info-dot" style="background: #64ffda;"></div>
+            <span>Rectilinear ⊕</span>
+          </div>
+          <div class="bloch3d-info-item">
+            <div class="bloch3d-info-dot" style="background: #f59e0b;"></div>
+            <span>Diagonal ⊗</span>
+          </div>
+          <div class="bloch3d-info-item">
+            <div class="bloch3d-info-dot" style="background: rgba(255,255,255,0.3);"></div>
+            <span>Drag to rotate</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Event Log Popup -->
+  <div id="logPopupOverlay" class="logpopup-overlay">
+    <div class="logpopup-modal">
+      <div class="logpopup-header">
+        <div class="logpopup-header-left">
+          <div class="logpopup-header-icon">📋</div>
+          <div>
+            <div class="logpopup-title">EVENT LOG</div>
+            <div class="logpopup-subtitle">Full system telemetry stream</div>
+          </div>
+        </div>
+        <div class="logpopup-actions">
+          <button id="logPopupClear" class="logpopup-btn danger" title="Clear all logs">✕ CLEAR</button>
+          <button id="logPopupClose" class="logpopup-close" title="Close">&times;</button>
+        </div>
+      </div>
+      <div id="logPopupBody" class="logpopup-body"></div>
+      <div class="logpopup-footer">
+        <div class="logpopup-count">
+          <span class="logpopup-live-dot"></span>
+          <span id="logPopupCount">0</span> ENTRIES
+        </div>
+        <div style="font-size:0.65rem; color:var(--text-muted); opacity:0.5;">LIVE — AUTO-UPDATING</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QBER Analysis Popup -->
+  <div id="qberPopupOverlay" class="qberpopup-overlay">
+    <div class="qberpopup-modal">
+      <div class="qberpopup-header">
+        <div class="qberpopup-header-left">
+          <div class="qberpopup-header-icon">📊</div>
+          <div>
+            <div class="qberpopup-title">QBER ANALYSIS</div>
+            <div class="qberpopup-subtitle">Quantum Bit Error Rate — Channel Security Monitor</div>
+          </div>
+        </div>
+        <button id="qberPopupClose" class="qberpopup-close" title="Close">&times;</button>
+      </div>
+
+      <div class="qberpopup-body">
+        <!-- Primary stats -->
+        <div class="qberpopup-stat-grid">
+          <div class="qberpopup-stat">
+            <div class="qberpopup-stat-label">TOTAL QUBITS</div>
+            <div class="qberpopup-stat-value" id="qpTotalBits">—</div>
+          </div>
+          <div class="qberpopup-stat">
+            <div class="qberpopup-stat-label">QBER</div>
+            <div class="qberpopup-stat-value text-gradient" id="qpQberValue">—</div>
+          </div>
+          <div class="qberpopup-stat">
+            <div class="qberpopup-stat-label" style="color:var(--success);">✓ MATCHED</div>
+            <div class="qberpopup-stat-value" id="qpMatched" style="color:var(--success);">—</div>
+          </div>
+          <div class="qberpopup-stat">
+            <div class="qberpopup-stat-label" style="color:var(--warning);">✗ DISCARDED</div>
+            <div class="qberpopup-stat-value" id="qpDiscarded" style="color:var(--warning);">—</div>
+          </div>
+        </div>
+
+        <!-- QBER vs Threshold visual bar -->
+        <div
+          style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-muted); letter-spacing:0.08em; margin-bottom:4px;">
+          QBER vs SECURITY THRESHOLD
+        </div>
+        <div class="qber-threshold-bar">
+          <div class="qber-threshold-fill" id="qpThresholdFill"
+            style="width:0%; background:linear-gradient(90deg,#10b981,#64ffda);"></div>
+          <div class="qber-threshold-marker" style="left:44%;">
+            <div class="qber-threshold-marker-label">11% THRESHOLD</div>
+          </div>
+          <div class="qber-threshold-value-label" id="qpBarLabel">0.0%</div>
+        </div>
+        <div
+          style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:0.5rem; color:var(--text-muted);">
+          <span>0%</span>
+          <span>SECURE ZONE</span>
+          <span>25%</span>
+        </div>
+
+        <!-- Efficiency metrics -->
+        <div class="qber-efficiency-grid">
+          <div class="qber-eff-card">
+            <div class="qber-eff-label">SIFTING EFFICIENCY</div>
+            <div class="qber-eff-value" id="qpSiftEff" style="color:#64ffda;">—</div>
+            <div class="qber-eff-sub" id="qpSiftSub">matched / total qubits</div>
+          </div>
+          <div class="qber-eff-card">
+            <div class="qber-eff-label">FINAL KEY RATE</div>
+            <div class="qber-eff-value" id="qpKeyRate" style="color:#818cf8;">—</div>
+            <div class="qber-eff-sub" id="qpKeySub">usable key bits</div>
+          </div>
+          <div class="qber-eff-card">
+            <div class="qber-eff-label">THRESHOLD MARGIN</div>
+            <div class="qber-eff-value" id="qpThreshMargin" style="color:#10b981;">—</div>
+            <div class="qber-eff-sub">room below 11% limit</div>
+          </div>
+        </div>
+
+        <!-- Real-time matching log (mirrored from sidebar) -->
+        <div
+          style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-muted); letter-spacing:0.08em; margin-top:16px; margin-bottom:4px;">
+          QUBIT-BY-QUBIT COMPARISON LOG
+        </div>
+        <div class="qberpopup-matchlog" id="qpMatchLog">
+          <div style="color:var(--text-muted);">Awaiting BB84 exchange data...</div>
+        </div>
+      </div>
+
+      <div class="qberpopup-footer">
+        <div class="qberpopup-verdict" id="qpVerdict" style="color:#94a3b8;">AWAITING BB84 DATA</div>
+        <div style="font-size:0.6rem; color:var(--text-muted); font-family:var(--font-mono); opacity:0.5;">BB84 PROTOCOL
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Real Time Charts Popup -->
+  <div id="rtcPopupOverlay" class="rtcpopup-overlay">
+    <div class="rtcpopup-modal">
+      <div class="rtcpopup-header">
+        <div class="rtcpopup-header-left">
+          <div class="rtcpopup-header-icon">📈</div>
+          <div>
+            <div class="rtcpopup-title">REAL TIME CHARTS</div>
+            <div class="rtcpopup-subtitle">Live BB84 Protocol Analytics Dashboard</div>
+          </div>
+        </div>
+        <button id="rtcPopupClose" class="rtcpopup-close" title="Close">&times;</button>
+      </div>
+
+      <div class="rtcpopup-body">
+        <!-- Chart 1: QBER & Efficiency -->
+        <div class="rtcpopup-chart-section">
+          <div class="rtcpopup-chart-header">
+            <div class="rtcpopup-chart-title">📊 QBER & Efficiency Analysis</div>
+            <div class="rtcpopup-chart-stats">
+              <div class="rtcpopup-stat-pill" id="rtcPopupQberVal" style="color: #64ffda;">QBER: — %</div>
+              <div class="rtcpopup-stat-pill" id="rtcPopupEffVal" style="color: #818cf8;">EFF: — %</div>
+              <div class="rtcpopup-stat-pill" id="rtcPopupThreshVal" style="color: #ef4444;">THRESHOLD: 11%</div>
+            </div>
+          </div>
+          <div class="rtcpopup-chart-canvas">
+            <canvas id="rtcPopupQberChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart 2: Basis Matching -->
+        <div class="rtcpopup-chart-section">
+          <div class="rtcpopup-chart-header">
+            <div class="rtcpopup-chart-title">🔀 Basis Matching Analysis</div>
+            <div class="rtcpopup-chart-stats">
+              <div class="rtcpopup-stat-pill" id="rtcPopupMatchVal" style="color: #10b981;">MATCHED: —</div>
+              <div class="rtcpopup-stat-pill" id="rtcPopupDiscardVal" style="color: #f59e0b;">DISCARDED: —</div>
+            </div>
+          </div>
+          <div class="rtcpopup-chart-canvas">
+            <canvas id="rtcPopupBasisChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="rtcpopup-footer">
+        <div class="rtcpopup-footer-left">
+          <div class="rtc-live-dot"></div>
+          <span>LIVE — AUTO-UPDATING</span>
+        </div>
+        <div style="font-size:0.6rem; color:var(--text-muted); font-family:var(--font-mono); opacity:0.5;">BB84 PROTOCOL
+          TELEMETRY</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile drawer toggle buttons -->
+  <button id="mobileToggleSidebar" class="mobile-toggle" aria-label="Toggle users panel">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+      <circle cx="9" cy="7" r="4"></circle>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+    </svg>
+  </button>
+  <button id="mobileToggleTelemetry" class="mobile-toggle" aria-label="Toggle telemetry panel">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+    </svg>
+  </button>
+  <div id="drawerBackdrop" class="drawer-backdrop"></div>
+
+  <script>
+    // Mobile drawer toggle logic
+    (function () {
+      const sidebar = document.querySelector('.sidebar');
+      const telemetry = document.querySelector('.telemetry-panel');
+      const backdrop = document.getElementById('drawerBackdrop');
+      const btnSidebar = document.getElementById('mobileToggleSidebar');
+      const btnTelemetry = document.getElementById('mobileToggleTelemetry');
+
+      function closeAll() {
+        sidebar.classList.remove('open');
+        telemetry.classList.remove('open');
+        backdrop.classList.remove('active');
+      }
+
+      btnSidebar.addEventListener('click', () => {
+        const isOpen = sidebar.classList.contains('open');
+        closeAll();
+        if (!isOpen) {
+          sidebar.classList.add('open');
+          backdrop.classList.add('active');
+        }
+      });
+
+      btnTelemetry.addEventListener('click', () => {
+        const isOpen = telemetry.classList.contains('open');
+        closeAll();
+        if (!isOpen) {
+          telemetry.classList.add('open');
+          backdrop.classList.add('active');
+        }
+      });
+
+      backdrop.addEventListener('click', closeAll);
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeAll();
+      });
+    })();
+  </script>
+
+  <!-- Scripts -->
+  <script src="/static/room.js?v=12"></script>
+</body>
+
+</html>

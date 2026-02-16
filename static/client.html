@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QSEC | Quantum Gateway</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .login-container {
+            width: 500px;
+            /* Wider for robust feel */
+            max-width: 95%;
+            position: relative;
+            z-index: 10;
+        }
+
+        .brand-logo-small {
+            width: 40px;
+            height: 40px;
+            color: var(--quantum-teal);
+            border: 1px solid var(--quantum-teal);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            background: rgba(100, 255, 218, 0.1);
+        }
+
+        @media (max-width: 560px) {
+            .login-container {
+                max-width: 100%;
+                padding: 0 0.5rem;
+            }
+
+            .cyber-card {
+                padding: 2rem 1.25rem;
+            }
+
+            .tech-header {
+                flex-direction: column;
+                gap: 0.75rem;
+                text-align: center;
+            }
+
+            .tech-header .flex-center {
+                justify-content: center;
+            }
+
+            .tech-header .text-xs {
+                text-align: center;
+            }
+
+            .tech-stat-row {
+                flex-wrap: wrap;
+                gap: 0.25rem;
+                justify-content: center;
+                font-size: 0.6rem;
+            }
+
+            .cyber-input {
+                font-size: 0.9rem;
+                padding: 0.85rem 0.85rem 0.85rem 2.75rem;
+            }
+
+            .cyber-btn {
+                padding: 0.85rem;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+
+<body class="flex-center full-h-screen">
+
+    <div class="quantum-bg">
+        <div class="grid-overlay"></div>
+        <canvas id="particle-canvas"></canvas>
+    </div>
+
+    <main class="login-container">
+        <!-- New Robust Cyber Card -->
+        <div class="cyber-card">
+            <div class="scan-line"></div>
+
+            <!-- Corner Accents -->
+            <div class="corner-accent corner-tl"></div>
+            <div class="corner-accent corner-tr"></div>
+            <div class="corner-accent corner-bl"></div>
+            <div class="corner-accent corner-br"></div>
+
+            <!-- Header -->
+            <div class="tech-header">
+                <div class="flex-center" style="gap: 1rem;">
+                    <div class="brand-logo-small">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 style="font-size: 1.5rem; line-height: 1;">QSEC GATEWAY</h1>
+                        <div class="text-gradient"
+                            style="font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;">
+                            Secure Quantum Uplink</div>
+                    </div>
+                </div>
+                <div class="text-xs font-mono text-muted" style="text-align: right;">
+                    <div>SYS.VER: 2.4.0</div>
+                    <div style="color: var(--success);">ONLINE</div>
+                </div>
+            </div>
+
+            <!-- Tech Stats -->
+            <div class="tech-stat-row">
+                <span>ENCRYPTION: AES-256-GCM</span>
+                <span>PROTOCOL: BB84/QKD</span>
+                <span>LATENCY: &lt;12ms</span>
+            </div>
+
+            <form id="joinForm" onsubmit="handleJoin(event)">
+
+                <!-- Room Input -->
+                <div class="cyber-input-group">
+                    <label class="cyber-label" for="room">ACCESS ID</label>
+                    <input type="text" id="room" class="cyber-input" placeholder="AUTO-GENERATE" maxlength="32"
+                        autocomplete="off">
+                    <div class="cyber-input-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- User Input -->
+                <div class="cyber-input-group">
+                    <label class="cyber-label" for="username">OPERATOR ALIAS</label>
+                    <input type="text" id="username" class="cyber-input" placeholder="IDENTITY" maxlength="24"
+                        autocomplete="off" required>
+                    <div class="cyber-input-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Expected -->
+                <div class="cyber-input-group" id="expectedGroup">
+                    <label class="cyber-label" for="expected">CAPACITY</label>
+                    <input type="number" id="expected" class="cyber-input" placeholder="MIN 2 NODES" min="2" max="10">
+                    <div class="cyber-input-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" id="joinBtn" class="cyber-btn">
+                        INITIALIZE SECURE UPLINK
+                    </button>
+                </div>
+
+                <div class="flex-center mt-4 text-xs font-mono text-muted">
+                    <span style="opacity: 0.6;">AUTHORIZED ACCESS ONLY // QSEC-2 PROTOCOL</span>
+                </div>
+
+            </form>
+        </div>
+    </main>
+
+    <script>
+        // UI Logic
+        const roomInput = document.getElementById('room');
+        const expectedGroup = document.getElementById('expectedGroup');
+        const joinBtn = document.getElementById('joinBtn');
+        const usernameInput = document.getElementById('username');
+
+        // Toggle expected input visibility based on room ID
+        function updateFormState() {
+            const hasRoom = roomInput.value.trim().length > 0;
+            if (hasRoom) {
+                expectedGroup.style.opacity = '0.4';
+                expectedGroup.style.pointerEvents = 'none'; // Disable expected if joining existing
+            } else {
+                expectedGroup.style.opacity = '1';
+                expectedGroup.style.pointerEvents = 'auto';
+            }
+        }
+
+        roomInput.addEventListener('input', updateFormState);
+
+        function handleJoin(e) {
+            e.preventDefault();
+
+            const room = roomInput.value.trim().replace(/[^a-zA-Z0-9_-]/g, "").substring(0, 32) || makeRandomRoom();
+            const user = usernameInput.value.trim() || 'Guest';
+            const expected = document.getElementById('expected').value;
+            const isNewRoom = roomInput.value.trim().length === 0;
+
+            if (isNewRoom && (!expected || expected < 2)) {
+                alert("Please specify at least 2 participants for a new secure session.");
+                return;
+            }
+
+            // Construct URL
+            let url = `/room/${encodeURIComponent(room)}?username=${encodeURIComponent(user)}`;
+            if (isNewRoom && expected) {
+                url += `&expected=${encodeURIComponent(expected)}`;
+            }
+
+            // Artificial delay for "effect"
+            joinBtn.innerHTML = 'AUTHENTICATING...';
+            joinBtn.style.opacity = '0.7';
+            joinBtn.disabled = true;
+
+            // Glitch effect on body?
+            document.body.style.filter = "hue-rotate(45deg) contrast(1.2)";
+
+            setTimeout(() => {
+                window.location.href = url;
+            }, 800);
+        }
+
+        function makeRandomRoom() {
+            return Math.random().toString(36).slice(2, 6).toUpperCase() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+        }
+
+        // Particle Animation (Reused)
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let particles = [];
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.size = Math.random() * 2;
+                this.alpha = Math.random() * 0.5 + 0.1;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < 0 || this.x > width) this.vx *= -1;
+                if (this.y < 0 || this.y > height) this.vy *= -1;
+            }
+            draw() {
+                ctx.fillStyle = `rgba(100, 255, 218, ${this.alpha})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function initParticles() {
+            resize();
+            particles = Array.from({ length: 60 }, () => new Particle());
+            animate();
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+
+            ctx.strokeStyle = 'rgba(100, 255, 218, 0.05)';
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i < particles.length; i++) {
+                let p = particles[i];
+                p.update();
+                p.draw();
+
+                for (let j = i + 1; j < particles.length; j++) {
+                    let p2 = particles[j];
+                    let dx = p.x - p2.x;
+                    let dy = p.y - p2.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < 120) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', resize);
+        window.onload = initParticles;
+
+    </script>
+</body>
+
+</html>

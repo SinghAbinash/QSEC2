@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>QSEC2 — Full Flow Architecture</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        :root {
+            --teal: #0d9488;
+            --teal-light: #14b8a6;
+            --blue: #3b82f6;
+            --purple: #8b5cf6;
+            --dark: #0f172a;
+            --dark2: #1e293b;
+            --text: #1e293b;
+            --text-secondary: #475569;
+            --border: #e2e8f0;
+            --bg-code: #f1f5f9;
+            --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: var(--text);
+            line-height: 1.7;
+            background: #fff;
+            padding: 0;
+        }
+
+        .cover {
+            page-break-after: always;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            color: white;
+            text-align: center;
+            padding: 4rem 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cover::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 20% 40%, rgba(20, 184, 166, 0.15), transparent 40%),
+                radial-gradient(circle at 80% 60%, rgba(59, 130, 246, 0.1), transparent 40%);
+        }
+
+        .cover-logo {
+            font-size: 5rem;
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .cover h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #14b8a6, #3b82f6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            position: relative;
+        }
+
+        .cover h2 {
+            font-size: 1.3rem;
+            font-weight: 400;
+            color: #94a3b8;
+            margin-bottom: 3rem;
+            position: relative;
+        }
+
+        .cover-meta {
+            display: flex;
+            gap: 2rem;
+            font-size: 0.85rem;
+            color: #64748b;
+            position: relative;
+        }
+
+        .cover-meta span {
+            padding: 0.3rem 1rem;
+            border: 1px solid rgba(100, 255, 218, 0.2);
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 3rem 2.5rem;
+        }
+
+        /* PDF Download Button */
+        .pdf-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: #64ffda;
+            border: 1px solid rgba(100, 255, 218, 0.3);
+            border-radius: 50px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            cursor: pointer;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 20px rgba(100, 255, 218, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .pdf-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 32px rgba(0, 0, 0, 0.4), 0 0 30px rgba(100, 255, 218, 0.15);
+            border-color: rgba(100, 255, 218, 0.6);
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+        }
+
+        .pdf-btn:active {
+            transform: translateY(0);
+        }
+
+        .pdf-btn svg {
+            width: 18px;
+            height: 18px;
+            fill: #64ffda;
+        }
+
+        @media print {
+            .pdf-btn {
+                display: none !important;
+            }
+
+            body {
+                padding: 0;
+            }
+
+            .content {
+                padding: 1.5rem;
+            }
+
+            pre,
+            .flow-box {
+                font-size: 0.7rem;
+            }
+
+            .cover {
+                min-height: 100vh;
+            }
+
+            table {
+                font-size: 0.8rem;
+            }
+
+            h1 {
+                page-break-after: avoid;
+            }
+
+            h2,
+            h3 {
+                page-break-after: avoid;
+            }
+
+            table,
+            pre,
+            .flow-box {
+                page-break-inside: avoid;
+            }
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin: 2.5rem 0 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 3px solid var(--teal);
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--dark);
+            margin: 2rem 0 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        h3 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--dark2);
+            margin: 1.5rem 0 0.5rem;
+        }
+
+        p {
+            margin-bottom: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0 1.5rem;
+            font-size: 0.88rem;
+        }
+
+        thead th {
+            background: var(--dark);
+            color: white;
+            padding: 0.6rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.8rem;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        thead th:first-child {
+            border-radius: 6px 0 0 0;
+        }
+
+        thead th:last-child {
+            border-radius: 0 6px 0 0;
+        }
+
+        tbody td {
+            padding: 0.55rem 1rem;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #f8fafc;
+        }
+
+        tbody tr:hover {
+            background: #f1f5f9;
+        }
+
+        pre {
+            background: var(--dark);
+            color: #e2e8f0;
+            padding: 1.25rem 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            line-height: 1.6;
+            margin: 1rem 0 1.5rem;
+        }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+            background: var(--bg-code);
+            padding: 0.15rem 0.4rem;
+            border-radius: 3px;
+            color: var(--teal);
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        .info-box {
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            margin: 1rem 0 1.5rem;
+            border-left: 4px solid;
+        }
+
+        .info-box.teal {
+            background: rgba(20, 184, 166, 0.06);
+            border-color: var(--teal);
+        }
+
+        .info-box.blue {
+            background: rgba(59, 130, 246, 0.06);
+            border-color: var(--blue);
+        }
+
+        .info-box.red {
+            background: rgba(239, 68, 68, 0.06);
+            border-color: var(--danger);
+        }
+
+        .info-box p {
+            margin: 0;
+            color: var(--text);
+        }
+
+        .info-box strong {
+            color: var(--dark);
+        }
+
+        .file-tree {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            line-height: 1.8;
+            margin: 1rem 0 1.5rem;
+        }
+
+        .file-tree .dir {
+            color: var(--blue);
+            font-weight: 600;
+        }
+
+        .file-tree .file {
+            color: var(--text-secondary);
+        }
+
+        .file-tree .comment {
+            color: #94a3b8;
+            font-style: italic;
+        }
+
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), transparent);
+            margin: 2.5rem 0;
+        }
+
+        .flow-box {
+            background: var(--dark);
+            color: #e2e8f0;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            overflow-x: auto;
+            white-space: pre;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.02em;
+        }
+
+        .badge-teal {
+            background: rgba(20, 184, 166, 0.12);
+            color: var(--teal);
+        }
+
+        .badge-blue {
+            background: rgba(59, 130, 246, 0.12);
+            color: var(--blue);
+        }
+
+        .badge-purple {
+            background: rgba(139, 92, 246, 0.12);
+            color: var(--purple);
+        }
+
+        .page-footer {
+            text-align: center;
+            padding: 2rem;
+            color: #94a3b8;
+            font-size: 0.75rem;
+            border-top: 1px solid var(--border);
+            margin-top: 3rem;
+        }
+
+        .toc {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.5rem 2rem;
+            margin: 1.5rem 0 2rem;
+        }
+
+        .toc h3 {
+            margin-top: 0;
+        }
+
+        .toc ol {
+            padding-left: 1.5rem;
+            color: var(--text-secondary);
+        }
+
+        .toc li {
+            margin-bottom: 0.4rem;
+            font-size: 0.92rem;
+        }
+
+        .toc a {
+            color: var(--teal);
+            text-decoration: none;
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        ul,
+        ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        li {
+            margin-bottom: 0.3rem;
+            color: var(--text-secondary);
+        }
+
+        @media print {
+            body {
+                padding: 0;
+            }
+
+            .content {
+                padding: 1.5rem;
+            }
+
+            pre,
+            .flow-box {
+                font-size: 0.7rem;
+            }
+
+            .cover {
+                min-height: 100vh;
+            }
+
+            table {
+                font-size: 0.8rem;
+            }
+
+            h1 {
+                page-break-after: avoid;
+            }
+
+            h2,
+            h3 {
+                page-break-after: avoid;
+            }
+
+            table,
+            pre,
+            .flow-box {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ===== COVER PAGE ===== -->
+    <div class="cover">
+        <div class="cover-logo">🔐</div>
+        <h1>QSEC2</h1>
+        <h2>Quantum-Secured Encrypted Chat — Full Flow Architecture</h2>
+        <div class="cover-meta">
+            <span>v3.0.0</span>
+            <span>BB84 / CASCADE / Toeplitz / AES-256-GCM</span>
+            <span>Feb 2026</span>
+        </div>
+    </div>
+
+    <!-- ===== CONTENT ===== -->
+    <div class="content">
+
+        <div class="toc">
+            <h3>📑 Table of Contents</h3>
+            <ol>
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#file-structure">File Structure</a></li>
+                <li><a href="#user-flow">Complete User Flow</a></li>
+                <li><a href="#server">Server Side Architecture</a></li>
+                <li><a href="#client">Client Side Architecture</a></li>
+                <li><a href="#bb84">BB84 Protocol Deep Dive (8-Step)</a></li>
+                <li><a href="#security">Security Model</a></li>
+                <li><a href="#visualization">Visualization Layer</a></li>
+                <li><a href="#database">Database Schema</a></li>
+                <li><a href="#utilities">Utility Scripts</a></li>
+            </ol>
+        </div>
+
+        <!-- ===== 1. OVERVIEW ===== -->
+        <h1 id="overview">1. Overview</h1>
+
+        <p>
+            QSEC2 is a <strong>real-time encrypted chat application</strong> that uses a simulated
+            <strong>BB84 Quantum Key Distribution</strong> protocol to establish session keys between peers,
+            then encrypts all messages with <strong>AES-256-GCM</strong>. The core design principle is a
+            <strong>zero-knowledge server</strong> — the server never sees plaintext messages or
+            cryptographic key material.
+        </p>
+
+        <div class="info-box teal">
+            <p><strong>Design Principle:</strong> The server acts purely as a message relay. All cryptographic
+                operations — key generation, BB84 simulation, error correction, privacy amplification,
+                AES encryption/decryption — happen exclusively on the client side. If the server is
+                compromised, the attacker gains nothing useful.</p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Aspect</th>
+                    <th>Technology</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Backend</td>
+                    <td>Python / Flask + Flask-SocketIO</td>
+                </tr>
+                <tr>
+                    <td>Transport</td>
+                    <td>WebSocket (Socket.IO)</td>
+                </tr>
+                <tr>
+                    <td>Database</td>
+                    <td>SQLite (metadata/logs only)</td>
+                </tr>
+                <tr>
+                    <td>Key Exchange</td>
+                    <td>Simulated BB84 (4096 qubits, CSPRNG)</td>
+                </tr>
+                <tr>
+                    <td>Error Correction</td>
+                    <td>CASCADE (4-pass binary parity)</td>
+                </tr>
+                <tr>
+                    <td>Privacy Amplification</td>
+                    <td>Toeplitz hashing</td>
+                </tr>
+                <tr>
+                    <td>Symmetric Encryption</td>
+                    <td>AES-256-GCM (Web Crypto API)</td>
+                </tr>
+                <tr>
+                    <td>RNG</td>
+                    <td><code>crypto.getRandomValues()</code> (CSPRNG)</td>
+                </tr>
+                <tr>
+                    <td>Frontend</td>
+                    <td>Vanilla HTML/CSS/JS + Three.js + Chart.js</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="info-box blue">
+            <p><strong>Key Pipeline (typical run at 5% QBER):</strong><br>
+                4096 qubits → ~2048 sifted → 2048 corrected (CASCADE) → ~1858 amplified (Toeplitz) → 256-bit AES-GCM
+                key<br>
+                This yields <strong>1858 bits of genuine quantum-derived entropy</strong>, far exceeding the 256-bit
+                minimum for AES-256.</p>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- ===== 2. FILE STRUCTURE ===== -->
+        <h1 id="file-structure">2. File Structure</h1>
+
+        <div class="file-tree">
+            <span class="dir">QSEC2/</span>
+            ├── <span class="file">server.py</span> <span class="comment">← Flask + SocketIO entry point</span>
+            ├── <span class="file">chatcontainer.py</span> <span class="comment">← All Socket.IO event handlers</span>
+            ├── <span class="file">db.py</span> <span class="comment">← SQLite database layer</span>
+            ├── <span class="file">qber_analysis.py</span> <span class="comment">← QBER computation helpers</span>
+            ├── <span class="file">room_logs.py</span> <span class="comment">← CLI tool to view/follow room logs</span>
+            ├── <span class="file">init_db.py</span> <span class="comment">← DB initialization script</span>
+            ├── <span class="file">QSEC2_Architecture.html</span> <span class="comment">← This document</span>
+            ├── <span class="dir">data/</span>
+            │ └── <span class="file">qsec2.db</span> <span class="comment">← SQLite database (auto-created)</span>
+            └── <span class="dir">static/</span>
+            ├── <span class="file">client.html</span> <span class="comment">← Landing page (join/create room)</span>
+            ├── <span class="file">room.html</span> <span class="comment">← Chat room UI (~2500 lines)</span>
+            ├── <span class="file">room.js</span> <span class="comment">← Client-side BB84 + EC/PA + AES + UI (3074
+                lines)</span>
+            └── <span class="file">style.css</span> <span class="comment">← Global design system</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- ===== 3. USER FLOW ===== -->
+        <h1 id="user-flow">3. Complete User Flow</h1>
+
+        <h3>Step 1 — Landing Page</h3>
+        <p>User opens <code>/</code> → <code>client.html</code>. They enter a <strong>Room ID</strong>,
+            <strong>Username</strong>, and optional <strong>Expected Capacity</strong>. Clicking
+            "INITIALIZE LINK" redirects to <code>/room/&lt;room_id&gt;?username=X&amp;expected=N</code>.
+        </p>
+
+        <h3>Step 2 — Room Page Loads</h3>
+        <p><code>room.html</code> + <code>room.js</code> initialize. Socket.IO connects to the server and
+            emits <code>join</code> with room, username, and expected capacity.</p>
+
+        <h3>Step 3 — Server Handles Join</h3>
+        <p>Server validates capacity, adds user to tracking maps, broadcasts <code>user_list</code>
+            to all room members, and sends existing logs + public keys to the new user.</p>
+
+        <h3>Step 4 — BB84 Triggers</h3>
+        <p>When the client receives <code>user_list</code>, the <strong>leader</strong> (first joiner) generates an
+            AES-256 Room Key and initiates BB84 with each peer. Subsequent users wait for BB84.</p>
+
+        <h3>Step 5 — BB84 Key Exchange (8 Steps)</h3>
+        <p>Full quantum key exchange protocol executes: qubit generation → measurement → sifting → QBER check →
+            error correction (CASCADE) → privacy amplification (Toeplitz) → key derivation.
+            If QBER exceeds 11%, the protocol <strong>hard-aborts</strong> — no key is derived.
+            Otherwise, session key is derived from amplified bits via SHA-256.</p>
+
+        <h3>Step 6 — Room Key Transfer</h3>
+        <p>Leader encrypts Room Key with Session Key and sends to peer (with 4-second delay for PA sync).
+            Peer decrypts with retry logic (30 attempts × 1s).</p>
+
+        <h3>Step 7 — Secure Channel Active</h3>
+        <p>Peer decrypts Room Key. Send button activates. All messages are AES-256-GCM encrypted
+            before transmission. Server relays ciphertext blindly.</p>
+
+        <div class="divider"></div>
+
+        <!-- ===== 4. SERVER ===== -->
+        <h1 id="server">4. Server Side Architecture</h1>
+
+        <h2>4.1 — <code>server.py</code> (Entry Point)</h2>
+        <p>Minimal entry point that:</p>
+        <ul>
+            <li>Creates Flask app + SocketIO instance (CORS: *, threading mode, 50MB payload limit)</li>
+            <li>Initializes SQLite database</li>
+            <li>Maintains in-memory tracking maps: <code>ROOM_MEMBERS</code>, <code>SID_MAP</code>,
+                <code>ROOM_KEYS</code>
+            </li>
+            <li>Routes: <code>/</code> → client.html, <code>/room/&lt;id&gt;</code> → room.html</li>
+            <li>Delegates all event handling to <code>chatcontainer.py</code></li>
+        </ul>
+
+        <h2>4.2 — <code>chatcontainer.py</code> (Event Handlers)</h2>
+        <p>Single function <code>register_chat_handlers()</code> registers 20+ Socket.IO event handlers:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Event</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>join</code></td>
+                    <td>Room membership, capacity check, log [ROOM_CREATED]/[USER_JOIN]/[ROOM_READY]</td>
+                </tr>
+                <tr>
+                    <td><code>leave</code> / <code>disconnect</code></td>
+                    <td>Remove from room, clean up keys, log [KEY_DESTROYED]/[ROOM_TERMINATED]</td>
+                </tr>
+                <tr>
+                    <td><code>relay</code></td>
+                    <td>Generic event relay (inspects <code>type</code> field, broadcasts to room). Carries all BB84
+                        signals.</td>
+                </tr>
+                <tr>
+                    <td><code>bb84_relay</code></td>
+                    <td>Forward BB84 protocol messages between specific peers</td>
+                </tr>
+                <tr>
+                    <td><code>bb84_meta</code></td>
+                    <td>Log BB84 sifting completion metadata</td>
+                </tr>
+                <tr>
+                    <td><code>bb84_session</code></td>
+                    <td>Log BB84 session key derivation metadata</td>
+                </tr>
+                <tr>
+                    <td><code>announce_pubkey</code></td>
+                    <td>RSA public key distribution to room</td>
+                </tr>
+                <tr>
+                    <td><code>roomkey_share</code></td>
+                    <td>Encrypted room key delivery to specific peer</td>
+                </tr>
+                <tr>
+                    <td><code>roomkey_generated</code></td>
+                    <td>Log room key generation event</td>
+                </tr>
+                <tr>
+                    <td><code>roomkey_decrypted</code></td>
+                    <td>Log successful room key decryption</td>
+                </tr>
+                <tr>
+                    <td><code>group_message</code></td>
+                    <td>Relay AES-encrypted chat messages to room</td>
+                </tr>
+                <tr>
+                    <td><code>encrypted_message</code></td>
+                    <td>Forward encrypted payload (alternative path)</td>
+                </tr>
+                <tr>
+                    <td><code>store_encrypted</code></td>
+                    <td>Store + broadcast encrypted message</td>
+                </tr>
+                <tr>
+                    <td><code>plain_message</code></td>
+                    <td>Plaintext message relay (fallback)</td>
+                </tr>
+                <tr>
+                    <td><code>fetch_room_logs</code></td>
+                    <td>Client polls for structured audit logs</td>
+                </tr>
+                <tr>
+                    <td><code>msg_decrypted</code></td>
+                    <td>Log successful message decryption</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>In-Memory State</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Variable</th>
+                    <th>Type</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>ROOM_MEMBERS</code></td>
+                    <td><code>dict[str, set]</code></td>
+                    <td>room_id → set of usernames</td>
+                </tr>
+                <tr>
+                    <td><code>SID_MAP</code></td>
+                    <td><code>dict[str, tuple]</code></td>
+                    <td>socket_sid → (room_id, username)</td>
+                </tr>
+                <tr>
+                    <td><code>ROOM_ORDER</code></td>
+                    <td><code>dict[str, list]</code></td>
+                    <td>room_id → ordered list of usernames (first = leader)</td>
+                </tr>
+                <tr>
+                    <td><code>ROOM_EXPECTED</code></td>
+                    <td><code>dict[str, int]</code></td>
+                    <td>room_id → expected capacity</td>
+                </tr>
+                <tr>
+                    <td><code>PUBKEYS</code></td>
+                    <td><code>dict[str, dict]</code></td>
+                    <td>room_id → {username: RSA_pubkey_b64}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="divider"></div>
+
+        <!-- ===== 5. CLIENT ===== -->
+        <h1 id="client">5. Client Side Architecture</h1>
+
+        <h2>5.1 — <code>room.js</code> Module Breakdown (3074 lines)</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Module</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Config + State</td>
+                    <td>Colors, BB84 qubit count (4096), EC/PA params, QBER threshold (11%), global state</td>
+                </tr>
+                <tr>
+                    <td>DOM References</td>
+                    <td>All UI element references</td>
+                </tr>
+                <tr>
+                    <td>Logging (<code>sysLog</code>)</td>
+                    <td>Dual-write to sidebar + popup log</td>
+                </tr>
+                <tr>
+                    <td>AES-GCM Helpers</td>
+                    <td><code>generateRoomKey</code>, <code>aesEncrypt</code> (fresh 96-bit IV per message),
+                        <code>aesDecrypt</code>
+                    </td>
+                </tr>
+                <tr>
+                    <td>BB84 Protocol</td>
+                    <td><code>startBB84</code>, <code>handleBB84</code> (8-step flow with QBER hard-abort)</td>
+                </tr>
+                <tr>
+                    <td>Error Correction</td>
+                    <td>CASCADE 4-pass binary parity: <code>startErrorCorrection</code>, <code>handleECParity</code>
+                    </td>
+                </tr>
+                <tr>
+                    <td>Privacy Amplification</td>
+                    <td>Toeplitz hash: <code>startPrivacyAmplification</code>, <code>handlePAConfirm</code></td>
+                </tr>
+                <tr>
+                    <td><code>abortBB84</code></td>
+                    <td>Hard-abort: destroy session, wipe keys, disable send, update UI</td>
+                </tr>
+                <tr>
+                    <td>ECPA Telemetry Card</td>
+                    <td><code>updateECPACard</code> — live CASCADE pass, QBER%, leak estimate, PA output</td>
+                </tr>
+                <tr>
+                    <td>UI Helpers</td>
+                    <td><code>enableSendButton</code>, <code>setHeaderStatus</code>, <code>renderUserList</code></td>
+                </tr>
+                <tr>
+                    <td>Socket Events</td>
+                    <td><code>user_list</code>, <code>bb84_signal</code>, connect/join</td>
+                </tr>
+                <tr>
+                    <td>Chat</td>
+                    <td>Send/receive messages (text, image, audio, video, file)</td>
+                </tr>
+                <tr>
+                    <td>BlochSphere (2D)</td>
+                    <td>Canvas-based qubit state visualization (batch: 16 qubits/tick)</td>
+                </tr>
+                <tr>
+                    <td>ChannelMonitor</td>
+                    <td>Oscilloscope-style eavesdropper detection</td>
+                </tr>
+                <tr>
+                    <td>QBER Analysis + Popup</td>
+                    <td>Stat boxes, verdict, clickable popup with charts and threshold visualization</td>
+                </tr>
+                <tr>
+                    <td>QBER Animation</td>
+                    <td><code>animateQberMatching</code> — batch processing (~200 frames × 30ms ≈ 6s)</td>
+                </tr>
+                <tr>
+                    <td>BlochSphere3D</td>
+                    <td>Three.js interactive popup (drag to rotate, scroll to zoom)</td>
+                </tr>
+                <tr>
+                    <td>EventLogPopup</td>
+                    <td>Maximized log viewer</td>
+                </tr>
+                <tr>
+                    <td>RealTimeCharts</td>
+                    <td>Chart.js — QBER & Efficiency + Basis Matching live charts</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>5.2 — <code>room.html</code> Layout (~2500 lines)</h2>
+        <p>Three-column layout:</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Column</th>
+                    <th>Width</th>
+                    <th>Contents</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Left Sidebar</td>
+                    <td>280px</td>
+                    <td>User list, key status, protocol info, session timer</td>
+                </tr>
+                <tr>
+                    <td>Center</td>
+                    <td>flex: 1</td>
+                    <td>Chat messages + input area</td>
+                </tr>
+                <tr>
+                    <td>Right Panel</td>
+                    <td>320px</td>
+                    <td>Telemetry: Channel Monitor, Bloch Sphere, QBER Analysis, EC/PA Card, Event Log</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="divider"></div>
+
+        <!-- ===== 6. BB84 ===== -->
+        <h1 id="bb84">6. BB84 Protocol Deep Dive (8-Step)</h1>
+
+        <p>The BB84 Quantum Key Distribution protocol is simulated entirely on the client side,
+            using the server only as a relay. The protocol now includes full post-processing
+            (error correction + privacy amplification) for production-grade key derivation.</p>
+
+        <h2>6.1 — Configuration</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Value</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>BB84_QUBITS</code></td>
+                    <td>4096</td>
+                    <td>Raw photon count — yields ~2048 sifted bits</td>
+                </tr>
+                <tr>
+                    <td><code>EC_PASSES</code></td>
+                    <td>4</td>
+                    <td>CASCADE error correction passes</td>
+                </tr>
+                <tr>
+                    <td><code>EC_BLOCK_SIZE</code></td>
+                    <td>16</td>
+                    <td>Initial block size for parity checks</td>
+                </tr>
+                <tr>
+                    <td><code>PA_SECURITY_PARAM</code></td>
+                    <td>64</td>
+                    <td>Extra bits sacrificed in privacy amplification</td>
+                </tr>
+                <tr>
+                    <td><code>QBER_THRESHOLD</code></td>
+                    <td>11%</td>
+                    <td>Max tolerable QBER (BB84 theoretical bound)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>6.2 — Protocol Steps</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Step</th>
+                    <th>Action</th>
+                    <th>Who</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="badge badge-teal">1</span></td>
+                    <td>Generate Qubits</td>
+                    <td>Leader</td>
+                    <td>Generate 4096 random bits + 4096 random bases using <code>crypto.getRandomValues()</code>
+                        (CSPRNG)</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-teal">2</span></td>
+                    <td>Send Encoded Qubits</td>
+                    <td>Leader → Peer</td>
+                    <td>Qubits encoded in chosen bases sent via server relay (<code>bb84_signal</code>)</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-blue">3</span></td>
+                    <td>Measure Qubits</td>
+                    <td>Peer</td>
+                    <td>Peer measures with own random bases. 5% channel noise simulated. Bloch sphere visualizes states
+                    </td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-blue">4</span></td>
+                    <td>Share Bases</td>
+                    <td>Peer → Leader</td>
+                    <td>Measurement bases sent back (public channel). Qubits NOT revealed</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-purple">5</span></td>
+                    <td>Sifting + QBER Check</td>
+                    <td>Both</td>
+                    <td>Keep bits where bases matched (~2048), discard rest. Compute QBER.
+                        <strong>If QBER &gt; 11%: HARD ABORT — no key derived</strong>
+                    </td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-purple">6</span></td>
+                    <td>Error Correction (CASCADE)</td>
+                    <td>Both</td>
+                    <td>4-pass binary parity check with doubling block sizes (16→32→64→128).
+                        Corrects ~100 bit errors. Parity data exchanged via relay signals</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-teal">7</span></td>
+                    <td>Privacy Amplification (Toeplitz)</td>
+                    <td>Both</td>
+                    <td>Random Toeplitz matrix hashes 2048 corrected bits → ~1858 amplified bits.
+                        Removes any information leaked during EC. Key fingerprints compared for verification</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-teal">8</span></td>
+                    <td>Key Derivation</td>
+                    <td>Both</td>
+                    <td>Amplified bits → SHA-256 → 256-bit AES-GCM Session Key.
+                        Leader encrypts Room Key with Session Key and sends to peer</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>QBER Security Gate</h3>
+        <p>After sifting (Step 5), both sender and receiver independently compute QBER:</p>
+        <ul>
+            <li><strong>QBER &lt; 11%</strong> — Channel is secure, proceed to Error Correction</li>
+            <li><strong>QBER ≥ 11%</strong> — <strong>Protocol ABORTS immediately</strong>. <code>abortBB84()</code>
+                destroys the session,
+                wipes all key material, disables the send button, and displays "ABORTED — INSECURE" across all UI
+                elements.
+                No session key is ever derived from a compromised channel.</li>
+        </ul>
+
+        <h3>What the Bloch Sphere Visualizes</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Basis</th>
+                    <th>Bit = 0</th>
+                    <th>Bit = 1</th>
+                    <th>Color</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Rectilinear (⊕)</td>
+                    <td>|0⟩ (north pole)</td>
+                    <td>|1⟩ (south pole)</td>
+                    <td>Teal</td>
+                </tr>
+                <tr>
+                    <td>Diagonal (⊗)</td>
+                    <td>|+⟩ (equator +X)</td>
+                    <td>|−⟩ (equator −X)</td>
+                    <td>Amber</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="divider"></div>
+
+        <!-- ===== 7. SECURITY ===== -->
+        <h1 id="security">7. Security Model</h1>
+
+        <div class="info-box red">
+            <p><strong>Zero-Knowledge Server:</strong> The server NEVER sees plaintext messages or key material.
+                It only relays encrypted payloads between clients. If the server is compromised,
+                attackers gain only ciphertext — which is computationally infeasible to break.</p>
+        </div>
+
+        <h3>Key Hierarchy</h3>
+        <pre><code>  CLIENT A                    SERVER                    CLIENT B
+  ─────────                   ──────                    ─────────
+  Room Key (generated)           ✗ (never seen)         ✗ (not yet)
+       │                                                     │
+       ├── BB84 (4096 qubits) → relay only → BB84 response  │
+       │                                                     │
+       ├── QBER ✓ (< 11%)       ✗                  QBER ✓   │
+       │                                                     │
+       ├── CASCADE EC ────────→  relay  ←──────── CASCADE EC │
+       │                                                     │
+       ├── Toeplitz PA ────────→ relay  ←──────── Toeplitz   │
+       │                                                     │
+  Session Key (SHA-256)          ✗                Session Key │
+       │                                                     │
+       ├── Encrypt Room Key ──→  relay  ──→ Decrypt Room Key │
+       │                                                     │
+  Room Key ─────────────────── ✗ ─────────────────── Room Key
+       │                                                     │
+       ├── AES-256 Encrypt ──→   relay  ──→ AES-256 Decrypt ─┤
+       │  (fresh IV per msg)   forwarded   (plaintext local) │</code></pre>
+
+        <h3>Encryption Details</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Layer</th>
+                    <th>Algorithm</th>
+                    <th>Key Size</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Session Key</td>
+                    <td>SHA-256 of Toeplitz-amplified bits</td>
+                    <td>256-bit</td>
+                    <td>Encrypt Room Key during transfer</td>
+                </tr>
+                <tr>
+                    <td>Room Key</td>
+                    <td>AES-256-GCM</td>
+                    <td>256-bit (32 bytes)</td>
+                    <td>Encrypt/decrypt all chat messages</td>
+                </tr>
+                <tr>
+                    <td>Per-Message</td>
+                    <td>AES-256-GCM</td>
+                    <td>96-bit IV (CSPRNG, unique per message)</td>
+                    <td>Authenticated encryption of each message</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Security Audit Checklist</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Property</th>
+                    <th>Status</th>
+                    <th>Implementation</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>🔁 Unique nonce per AES-GCM message</td>
+                    <td>✅ PASS</td>
+                    <td>Fresh 12-byte IV via <code>crypto.getRandomValues()</code> every encrypt call</td>
+                </tr>
+                <tr>
+                    <td>🎲 Cryptographically secure RNG</td>
+                    <td>✅ PASS</td>
+                    <td><code>crypto.getRandomValues()</code> for all key material; <code>Math.random()</code> only for
+                        visuals</td>
+                </tr>
+                <tr>
+                    <td>🚫 Abort if QBER &gt; threshold</td>
+                    <td>✅ PASS</td>
+                    <td>Both sender &amp; receiver independently check; <code>abortBB84()</code> wipes all state</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="divider"></div>
+
+        <!-- ===== 8. VISUALIZATION ===== -->
+        <h1 id="visualization">8. Visualization Layer</h1>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Widget</th>
+                    <th>Technology</th>
+                    <th>What It Shows</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Bloch Sphere (2D)</td>
+                    <td>Canvas 2D</td>
+                    <td>Current qubit state during BB84. Batch-processes 16 qubits/tick for 4096-qubit scale</td>
+                </tr>
+                <tr>
+                    <td>Bloch Sphere (3D)</td>
+                    <td>Three.js WebGL</td>
+                    <td>Same data — interactive: drag to rotate, scroll to zoom</td>
+                </tr>
+                <tr>
+                    <td>Channel Monitor</td>
+                    <td>Canvas 2D</td>
+                    <td>Oscilloscope: flat line = secure, noise = eavesdropper</td>
+                </tr>
+                <tr>
+                    <td>QBER Analysis</td>
+                    <td>HTML + JS</td>
+                    <td>Total qubits, matched/discarded, error rate, verdict — clickable popup with detailed charts</td>
+                </tr>
+                <tr>
+                    <td>QBER Animation</td>
+                    <td>HTML + JS</td>
+                    <td>Batch qubit comparison (~200 frames × 30ms ≈ 6s), log capped at 200 lines</td>
+                </tr>
+                <tr>
+                    <td>EC/PA Telemetry Card</td>
+                    <td>HTML + JS</td>
+                    <td>Live CASCADE pass, errors corrected, QBER%, leak estimate, PA output bits</td>
+                </tr>
+                <tr>
+                    <td>Real-Time Charts</td>
+                    <td>Chart.js</td>
+                    <td>QBER & Efficiency + Basis Matching live charts during animation</td>
+                </tr>
+                <tr>
+                    <td>Event Log</td>
+                    <td>HTML (popup)</td>
+                    <td>Timestamped system events with clear/maximize</td>
+                </tr>
+                <tr>
+                    <td>Key Status</td>
+                    <td>HTML badge</td>
+                    <td>NEGOTIATING → KEY GENERATED (or ABORTED)</td>
+                </tr>
+                <tr>
+                    <td>Session Timer</td>
+                    <td>JS interval</td>
+                    <td>HH:MM:SS since join</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Bloch Sphere States</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>State</th>
+                    <th>Visual</th>
+                    <th>When</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="badge badge-blue">IDLE</span></td>
+                    <td>Arrow drifts near |0⟩</td>
+                    <td>Before BB84 starts</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-teal">TRANSMIT</span></td>
+                    <td>Arrow jumps per qubit</td>
+                    <td>During BB84 qubit processing</td>
+                </tr>
+                <tr>
+                    <td><span class="badge badge-purple">SECURE</span></td>
+                    <td>Arrow orbits smoothly</td>
+                    <td>After key exchange complete</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>ECPA Card Stage Display</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Stage</th>
+                    <th>Display</th>
+                    <th>Color</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>EC Running</td>
+                    <td><code>CASCADE PASS 2/4</code></td>
+                    <td>Amber</td>
+                </tr>
+                <tr>
+                    <td>EC Done</td>
+                    <td><code>EC COMPLETE ✓ | QBER: 5.1% | Leak: 190 bits</code></td>
+                    <td>Green</td>
+                </tr>
+                <tr>
+                    <td>PA Running</td>
+                    <td><code>PRIVACY AMPLIFICATION</code></td>
+                    <td>Purple</td>
+                </tr>
+                <tr>
+                    <td>PA Done</td>
+                    <td><code>SECURE KEY: 1858 bits | -10.2% entropy</code></td>
+                    <td>Teal</td>
+                </tr>
+                <tr>
+                    <td>Aborted</td>
+                    <td><code>ABORTED — INSECURE</code></td>
+                    <td>Red</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="divider"></div>
+
+        <!-- ===== 9. DATABASE ===== -->
+        <h1 id="database">9. Database Schema</h1>
+
+        <p>SQLite database at <code>data/qsec2.db</code> with three tables:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Table</th>
+                    <th>Columns</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>rooms</code></td>
+                    <td><code>room_id</code> TEXT PK, <code>key</code> BLOB</td>
+                    <td>Room registry (key column is optional server-side storage)</td>
+                </tr>
+                <tr>
+                    <td><code>room_users</code></td>
+                    <td><code>room_id</code> TEXT, <code>username</code> TEXT, UNIQUE(room_id, username)</td>
+                    <td>Track which users have been in which rooms</td>
+                </tr>
+                <tr>
+                    <td><code>room_logs</code></td>
+                    <td><code>id</code> INT PK, <code>room_id</code> TEXT, <code>message</code> TEXT,
+                        <code>created_at</code> DATETIME
+                    </td>
+                    <td>Structured audit trail of all room events</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Structured Log Tags</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Tag</th>
+                    <th>Example</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>[ROOM_CREATED]</code></td>
+                    <td><code>room=testroom leader=alice expected=2</code></td>
+                </tr>
+                <tr>
+                    <td><code>[USER_JOIN]</code></td>
+                    <td><code>room=testroom user=bob</code></td>
+                </tr>
+                <tr>
+                    <td><code>[ROOM_READY]</code></td>
+                    <td><code>room=testroom members=2</code></td>
+                </tr>
+                <tr>
+                    <td><code>[BB84_INIT]</code></td>
+                    <td><code>from=alice to=bob length=4096</code></td>
+                </tr>
+                <tr>
+                    <td><code>[BB84_SIFTING_COMPLETE]</code></td>
+                    <td><code>matched_bits=2048</code></td>
+                </tr>
+                <tr>
+                    <td><code>[ROOMKEY_GENERATED]</code></td>
+                    <td><code>by=alice size=32bytes</code></td>
+                </tr>
+                <tr>
+                    <td><code>[ROOMKEY_ENCRYPTED]</code></td>
+                    <td><code>to=bob method=AES-GCM(session_hash)</code></td>
+                </tr>
+                <tr>
+                    <td><code>[ROOMKEY_DECRYPTED]</code></td>
+                    <td><code>user=bob</code></td>
+                </tr>
+                <tr>
+                    <td><code>[MSG_ENCRYPTED]</code></td>
+                    <td><code>user=alice iv_len=12</code></td>
+                </tr>
+                <tr>
+                    <td><code>[MSG_RELAYED]</code></td>
+                    <td><code>room=testroom sender=alice</code></td>
+                </tr>
+                <tr>
+                    <td><code>[KEY_DESTROYED]</code></td>
+                    <td><code>user=alice</code></td>
+                </tr>
+                <tr>
+                    <td><code>[ROOM_TERMINATED]</code></td>
+                    <td><code>room=testroom</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="divider"></div>
+
+        <!-- ===== 10. UTILITIES ===== -->
+        <h1 id="utilities">10. Utility Scripts</h1>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Script</th>
+                    <th>Usage</th>
+                    <th>Purpose</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>room_logs.py</code></td>
+                    <td><code>python room_logs.py --room X --follow</code></td>
+                    <td>CLI tool to tail room logs in real-time from SQLite. Includes local heuristic summary.</td>
+                </tr>
+                <tr>
+                    <td><code>qber_analysis.py</code></td>
+                    <td><code>compute_qber(alice_bits, bob_bits, sifted, 10)</code></td>
+                    <td>Sample revealed bits, compute mismatches and QBER percentage.</td>
+                </tr>
+                <tr>
+                    <td><code>init_db.py</code></td>
+                    <td><code>python init_db.py</code></td>
+                    <td>One-liner to create/initialize SQLite database tables.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="divider"></div>
+
+        <div class="page-footer">
+            <p>QSEC2 Architecture Documentation — Updated Feb 16, 2026</p>
+            <p style="margin-top: 4px;">Quantum-Secured Encrypted Chat • BB84 / CASCADE / Toeplitz / AES-256-GCM •
+                v3.0.0</p>
+        </div>
+
+    </div>
+
+    <!-- PDF Download Button -->
+    <button class="pdf-btn" id="pdfBtn" title="Download as PDF">
+        <svg viewBox="0 0 24 24">
+            <path
+                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6zm3-7h6v1.5H9V13zm0 3h6v1.5H9V16zm0-6h3v1.5H9V10z" />
+        </svg>
+        <span id="pdfBtnText">DOWNLOAD PDF</span>
+    </button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+    <script>
+        document.getElementById('pdfBtn').addEventListener('click', function () {
+            const btn = this;
+            const btnText = document.getElementById('pdfBtnText');
+            btn.disabled = true;
+            btn.style.opacity = '0.6';
+            btnText.textContent = 'GENERATING...';
+
+            const opt = {
+                margin: 0,
+                filename: 'QSEC2_Architecture_v3.0.0.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+            };
+
+            html2pdf().set(opt).from(document.body).save().then(function () {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btnText.textContent = 'DOWNLOAD PDF';
+            }).catch(function () {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btnText.textContent = 'DOWNLOAD PDF';
+            });
+        });
+    </script>
+
+</body>
+
+</html>

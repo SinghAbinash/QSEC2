@@ -1,0 +1,13 @@
+
+# Use a Flask version available on PyPI
+Flask==2.3.3
+python-socketio==5.9.0
+flask-socketio==5.3.5
+# eventlet==0.33.3  # optional: not required for threading async_mode; enable if you want high-performance async
+cryptography==41.0.3
+# Qiskit is large; install only if you need the quantum simulator/cloud
+# qiskit==0.44.0  # optional: commented out to avoid long builds on pip
+# If you need Qiskit (quantum simulator/cloud), install it separately:
+# pip install qiskit
+# For IBM cloud runtime, install qiskit-ibm-runtime separately.
+python-dotenv==1.0.0
