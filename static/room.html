@@ -1356,23 +1356,28 @@
       .chat-area {
         min-height: 0;
         height: calc(100vh - 48px);
-        /* header height */
+        /* subtract header */
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
       }
 
       .chat-messages {
         padding: 1rem 0.75rem;
-        padding-bottom: 80px;
-        /* space for fixed input bar */
+        padding-bottom: 140px;
+        /* input bar (~50px) + toggle btns (~50px) + safety margin */
+        flex: 1;
+        overflow-y: auto;
       }
 
       .message-row {
-        max-width: 88%;
+        max-width: 85%;
       }
 
       /* Voice message audio players inside chat bubbles */
       .message-bubble audio {
-        max-width: 180px;
-        height: 32px;
+        max-width: 160px;
+        height: 28px;
       }
 
       .message-bubble img {
@@ -1385,6 +1390,13 @@
         max-height: 200px !important;
       }
 
+      /* Prevent message bubble content from overflowing */
+      .message-bubble {
+        max-width: 100%;
+        overflow: hidden;
+        word-break: break-word;
+      }
+
       /* ===== FIXED CHAT INPUT AREA ===== */
       .chat-input-area {
         padding: 0.5rem 0.6rem;
@@ -1394,9 +1406,10 @@
         left: 0;
         right: 0;
         z-index: 100;
-        background: rgba(8, 14, 26, 0.97);
-        border-top: 1px solid rgba(100, 255, 218, 0.12);
+        background: rgba(5, 10, 16, 0.98);
+        border-top: 1px solid rgba(100, 255, 218, 0.15);
         flex-wrap: nowrap;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
       }
 
       .chat-input-area .input-field {
@@ -1453,7 +1466,8 @@
 
       /* Move mobile toggle buttons above fixed input bar */
       .mobile-toggle {
-        bottom: 68px;
+        bottom: 72px;
+        z-index: 101;
       }
 
       /* Modals: full-screen on mobile */
@@ -1516,7 +1530,7 @@
 
       .chat-messages {
         padding: 0.75rem 0.5rem;
-        padding-bottom: 75px;
+        padding-bottom: 130px;
       }
 
       .message-row {
