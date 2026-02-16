@@ -1266,10 +1266,10 @@ function renderMessage(sender, payload, isSelf, encrypted) {
         // Voice message
         const duration = payload.duration || 0;
         const durStr = Math.floor(duration / 60) + ':' + String(Math.floor(duration % 60)).padStart(2, '0');
-        innerHTML = `<div style="display:flex;align-items:center;gap:10px;min-width:200px;">
-                        <span style="font-size:1.2rem">🎙</span>
-                        <audio controls src="${content}" style="flex:1;height:32px;" preload="metadata"></audio>
-                        <span style="font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:#94a3b8;">${durStr}</span>
+        innerHTML = `<div style="display:flex;align-items:center;gap:8px;max-width:100%;min-width:0;">
+                        <span style="font-size:1.2rem;flex-shrink:0;">🎙</span>
+                        <audio controls src="${content}" style="flex:1;height:32px;min-width:0;max-width:100%;" preload="metadata"></audio>
+                        <span style="font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:#94a3b8;flex-shrink:0;">${durStr}</span>
                      </div>`;
     } else {
         // Text
@@ -1433,9 +1433,15 @@ dom.voiceBtn.addEventListener('click', async () => {
     dom.messageInput.style.display = 'none';
     dom.voiceRecordArea.style.display = 'flex';
     dom.voiceTimer.textContent = '00:00';
-    // Size the canvas to fit its container
+    // Size the canvas to fit its container after flex layout settles
     const wfCanvas = dom.voiceWaveform;
-    wfCanvas.width = wfCanvas.parentElement.clientWidth - 120;
+    requestAnimationFrame(() => {
+        const availableWidth = wfCanvas.parentElement ? wfCanvas.parentElement.clientWidth : 200;
+        // Subtract timer + cancel button widths, but clamp to a reasonable minimum
+        const timerW = dom.voiceTimer ? dom.voiceTimer.offsetWidth : 36;
+        const cancelW = dom.voiceCancelBtn ? dom.voiceCancelBtn.offsetWidth : 28;
+        wfCanvas.width = Math.max(60, availableWidth - timerW - cancelW - 24);
+    });
 
     voiceTimerInterval = setInterval(() => {
         const elapsed = Math.floor((Date.now() - voiceStartTime) / 1000);

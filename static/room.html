@@ -1355,40 +1355,105 @@
       /* Chat area adjustments */
       .chat-area {
         min-height: 0;
+        height: calc(100vh - 48px);
+        /* header height */
       }
 
       .chat-messages {
         padding: 1rem 0.75rem;
-        padding-bottom: 70px;
+        padding-bottom: 80px;
+        /* space for fixed input bar */
       }
 
       .message-row {
         max-width: 88%;
       }
 
+      /* Voice message audio players inside chat bubbles */
+      .message-bubble audio {
+        max-width: 180px;
+        height: 32px;
+      }
+
+      .message-bubble img {
+        max-width: 100% !important;
+        max-height: 160px !important;
+      }
+
+      .message-bubble video {
+        max-width: 100% !important;
+        max-height: 200px !important;
+      }
+
+      /* ===== FIXED CHAT INPUT AREA ===== */
       .chat-input-area {
-        padding: 0.65rem 0.75rem;
-        gap: 0.5rem;
+        padding: 0.5rem 0.6rem;
+        gap: 0.4rem;
         position: fixed;
         bottom: 0;
         left: 0;
         right: 0;
         z-index: 100;
+        background: rgba(8, 14, 26, 0.97);
+        border-top: 1px solid rgba(100, 255, 218, 0.12);
+        flex-wrap: nowrap;
       }
 
       .chat-input-area .input-field {
         font-size: 0.85rem;
-        padding: 0.6rem 0.8rem;
+        padding: 0.55rem 0.7rem;
+        min-width: 0;
+        /* prevent overflow */
       }
 
       .chat-input-area #sendBtn {
-        padding: 0.5rem 1rem;
+        padding: 0.5rem 0.8rem;
+        font-size: 0.7rem;
+        white-space: nowrap;
+      }
+
+      .chat-input-area #attachBtn,
+      .chat-input-area #voiceBtn {
+        width: 34px;
+        height: 34px;
+        min-width: 34px;
+        flex-shrink: 0;
+      }
+
+      /* ===== VOICE RECORDING AREA (MOBILE) ===== */
+      #voiceRecordArea {
+        flex: 1 !important;
+        min-width: 0 !important;
+        gap: 6px !important;
+        padding: 0 6px !important;
+        overflow: hidden;
+      }
+
+      #voiceRecordArea #voiceTimer {
+        font-size: 0.7rem !important;
+        min-width: 36px !important;
+        flex-shrink: 0;
+      }
+
+      #voiceRecordArea #voiceWaveform {
+        flex: 1 !important;
+        min-width: 0 !important;
+        width: auto !important;
+        max-width: 100%;
+        height: 32px !important;
+      }
+
+      #voiceRecordArea #voiceCancelBtn {
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px;
+        flex-shrink: 0;
         font-size: 0.75rem;
       }
 
-      .chat-input-area #attachBtn {
-        width: 36px;
-        height: 36px;
+      /* Move mobile toggle buttons above fixed input bar */
+      .mobile-toggle {
+        bottom: 68px;
       }
 
       /* Modals: full-screen on mobile */
@@ -1451,16 +1516,54 @@
 
       .chat-messages {
         padding: 0.75rem 0.5rem;
-        padding-bottom: 70px;
+        padding-bottom: 75px;
       }
 
       .message-row {
-        max-width: 92%;
+        max-width: 94%;
       }
 
       .message-bubble {
         font-size: 0.85rem;
         padding: 0.6rem 0.8rem;
+      }
+
+      .message-bubble audio {
+        max-width: 140px;
+      }
+
+      .chat-input-area {
+        padding: 0.4rem 0.5rem;
+        gap: 0.3rem;
+      }
+
+      .chat-input-area #sendBtn {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.65rem;
+      }
+
+      .chat-input-area #attachBtn,
+      .chat-input-area #voiceBtn {
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+      }
+
+      #voiceRecordArea #voiceTimer {
+        font-size: 0.65rem !important;
+        min-width: 32px !important;
+      }
+
+      #voiceRecordArea #voiceCancelBtn {
+        width: 26px !important;
+        height: 26px !important;
+        min-width: 26px;
+      }
+
+      .mobile-toggle {
+        width: 38px;
+        height: 38px;
+        bottom: 62px;
       }
     }
 
