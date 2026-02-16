@@ -1355,8 +1355,9 @@
       /* Chat area adjustments */
       .chat-area {
         min-height: 0;
-        height: calc(100vh - 48px);
-        /* subtract header */
+        /* Stop the chat area ABOVE the fixed input bar (input ~54px tall) */
+        height: calc(100vh - 48px - 54px);
+        /* viewport - header - input bar */
         overflow: hidden;
         display: flex;
         flex-direction: column;
@@ -1364,8 +1365,8 @@
 
       .chat-messages {
         padding: 1rem 0.75rem;
-        padding-bottom: 140px;
-        /* input bar (~50px) + toggle btns (~50px) + safety margin */
+        padding-bottom: 70px;
+        /* space above toggle buttons which float over bottom */
         flex: 1;
         overflow-y: auto;
       }
@@ -1530,7 +1531,7 @@
 
       .chat-messages {
         padding: 0.75rem 0.5rem;
-        padding-bottom: 130px;
+        padding-bottom: 60px;
       }
 
       .message-row {
